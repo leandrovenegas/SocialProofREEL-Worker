@@ -60,7 +60,7 @@ def run_pipeline(business_name: str, lead_id: str = None, supabase=None):
         )
         print(result.stdout)
     except subprocess.CalledProcessError as e:
-        err_msg = f"Places API failed:\n{e.stderr}"
+        err_msg = f"Places API failed:\nSTDOUT: {e.stdout}\nSTDERR: {e.stderr}"
         print(f"[ORCHESTRATOR] ✗ {err_msg}")
         update_supabase_status(supabase, lead_id, "failed", error_message=err_msg)
         return False
@@ -84,7 +84,7 @@ def run_pipeline(business_name: str, lead_id: str = None, supabase=None):
                 break
 
     except subprocess.CalledProcessError as e:
-        err_msg = f"Core Render failed:\n{e.stderr}"
+        err_msg = f"Core Render failed:\nSTDOUT: {e.stdout}\nSTDERR: {e.stderr}"
         print(f"[ORCHESTRATOR] ✗ {err_msg}")
         update_supabase_status(supabase, lead_id, "failed", error_message=err_msg)
         return False
