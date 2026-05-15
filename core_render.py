@@ -94,8 +94,8 @@ def render_review_slide(
     b_name       = esc(business_name[:40])
     o_stars      = esc(f"[{stars(round(overall_rating))}]  {overall_rating}")
     r_stars      = esc(f"[{stars(review.get('rating', 5))}]")
-    review_text  = esc(wrap_text(review.get("review_text", ""), width=24))
-    reviewer     = esc("- " + review.get("reviewer_name", "Anonymous")[:30])
+    review_text  = esc(wrap_text(review.get("review_text", ""), width=20))
+    reviewer     = esc(review.get("reviewer_name", "Anonymous")[:30])
     font_esc     = font.replace(":", "\\:")
 
     cmd = ["ffmpeg", "-y"]
@@ -134,51 +134,52 @@ def render_review_slide(
         f":text='Reseñas de Google'"
         f":fontsize=40:fontcolor=0xAAAAAA:x=(w-text_w)/2:y=100[f0]"
     )
-    # Business name
+    # Reviewer Name (Now under avatar)
     chains.append(
         f"[f0]drawtext=fontfile='{font_esc}'"
-        f":text='{b_name}'"
-        f":fontsize=64:fontcolor=white:x=(w-text_w)/2:y=680"
+        f":text='{reviewer}'"
+        f":fontsize=56:fontcolor=white:x=(w-text_w)/2:y=660"
         f":shadowx=3:shadowy=3:shadowcolor=black[f1]"
-    )
-    # Overall rating
-    chains.append(
-        f"[f1]drawtext=fontfile='{font_esc}'"
-        f":text='{o_stars}'"
-        f":fontsize=48:fontcolor=0xFBBC04:x=(w-text_w)/2:y=760[f2]"
-    )
-    # Divider 1
-    chains.append(
-        "[f2]drawbox=x=90:y=850:w=900:h=3:color=0xFFFFFF@0.15:t=fill[f3]"
     )
     # Review rating
     chains.append(
-        f"[f3]drawtext=fontfile='{font_esc}'"
+        f"[f1]drawtext=fontfile='{font_esc}'"
         f":text='{r_stars}'"
-        f":fontsize=64:fontcolor=0xFBBC04:x=(w-text_w)/2:y=900[f4]"
+        f":fontsize=52:fontcolor=0xFBBC04:x=(w-text_w)/2:y=740[f2]"
+    )
+    # Divider 1
+    chains.append(
+        "[f2]drawbox=x=90:y=830:w=900:h=3:color=0xFFFFFF@0.15:t=fill[f3]"
     )
     # Review text
     chains.append(
-        f"[f4]drawtext=fontfile='{font_esc}'"
+        f"[f3]drawtext=fontfile='{font_esc}'"
         f":text='{review_text}'"
-        f":fontsize=48:fontcolor=white:x=(w-text_w)/2:y=1000"
-        f":line_spacing=18:fix_bounds=true[f5]"
-    )
-    # Reviewer name
-    chains.append(
-        f"[f5]drawtext=fontfile='{font_esc}'"
-        f":text='{reviewer}'"
-        f":fontsize=40:fontcolor=0xDDDDDD:x=(w-text_w)/2:y=1550[f6]"
+        f":fontsize=48:fontcolor=white:x=(w-text_w)/2:y=950"
+        f":line_spacing=18:fix_bounds=true[f4]"
     )
     # Divider 2
     chains.append(
-        "[f6]drawbox=x=90:y=1650:w=900:h=3:color=0xFFFFFF@0.15:t=fill[f7]"
+        "[f4]drawbox=x=90:y=1500:w=900:h=3:color=0xFFFFFF@0.15:t=fill[f5]"
+    )
+    # Business name (Now at the bottom)
+    chains.append(
+        f"[f5]drawtext=fontfile='{font_esc}'"
+        f":text='{b_name}'"
+        f":fontsize=50:fontcolor=white:x=(w-text_w)/2:y=1570"
+        f":shadowx=2:shadowy=2:shadowcolor=black[f6]"
+    )
+    # Overall rating
+    chains.append(
+        f"[f6]drawtext=fontfile='{font_esc}'"
+        f":text='{o_stars}'"
+        f":fontsize=38:fontcolor=0xFBBC04:x=(w-text_w)/2:y=1640[f7]"
     )
     # Watermark
     chains.append(
         f"[f7]drawtext=fontfile='{font_esc}'"
         f":text='leandrovenegas.cl'"
-        f":fontsize=32:fontcolor=0xFFFFFF@0.35:x=(w-text_w)/2:y=1800[out]"
+        f":fontsize=32:fontcolor=0xFFFFFF@0.35:x=(w-text_w)/2:y=1820[out]"
     )
 
     cmd += ["-filter_complex", ";".join(chains)]
