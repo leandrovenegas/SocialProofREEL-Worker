@@ -402,12 +402,18 @@ def process_queue():
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    # Check if we should run in worker/queue mode
+    if "--queue" in sys.argv:
+        process_queue()
+        sys.exit(0)
+
     if len(sys.argv) < 2:
         # Auto-detect the most recent lead folder
         folders = sorted(glob.glob(os.path.join(BASE_TEMP_DIR, "*")), key=os.path.getmtime, reverse=True)
         if not folders:
-            print("Usage: python core_render.py <lead_dir>")
-            print("No lead folders found in", BASE_TEMP_DIR)
+            print("Usage:")
+            print("  python core_render.py --queue          (Run as continuous worker)")
+            print("  python core_render.py <lead_dir>      (Render a specific folder)")
             sys.exit(1)
         lead_dir = folders[0]
         print(f"[CLI] Auto-selected most recent lead: {lead_dir}")
