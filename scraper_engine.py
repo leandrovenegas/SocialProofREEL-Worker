@@ -32,20 +32,23 @@ def build_reviews_url(url):
     Also strips session-specific params (authuser, rclk) that may
     trigger bot-detection redirects.
     """
-    # Remove params that tag the request as a specific user session.
-    clean = re.sub(r"[?&](authuser|rclk)=[^&]*", "", url)
-    clean = re.sub(r"[?&]$", "", clean)
-
-    # If !9m1!1b1 already present, leave as-is.
-    if "!9m1!1b1" in clean:
-        return clean
-
-    # Insert the reviews flag before the query string (if any).
-    if "?" in clean:
-        base, qs = clean.split("?", 1)
-        return f"{base}!9m1!1b1?{qs}"
+    # Parse into base path and query string first.
+    if "?" in url:
+        base, qs = url.split("?", 1)
     else:
-        return f"{clean}!9m1!1b1"
+        base, qs = url, ""
+
+    # Remove session-specific params that may cause bot-detection redirects.
+    qs_parts = [p for p in qs.split("&") if not re.match(r"(authuser|rclk)=", p) and p]
+    clean_qs = "&".join(qs_parts)
+
+    # If !9m1!1b1 already present, return with cleaned query string only.
+    if "!9m1!1b1" in base:
+        return f"{base}?{clean_qs}" if clean_qs else base
+
+    # Append the reviews-direct flag to the path.
+    reviews_base = f"{base}!9m1!1b1"
+    return f"{reviews_base}?{clean_qs}" if clean_qs else reviews_base
 
 
 async def scrape_reviews_with_playwright(url):
@@ -140,6 +143,56 @@ async def scrape_reviews_with_playwright(url):
                     pass
             if not cookie_dismissed:
                 print("[COOKIE] No banner detected — continuing.")
+
+            # --- Navigate to Reviews panel ---
+            # STRATEGY A: Click the overall star-rating widget.
+            # Confirmed visible in debug screenshot (5.0 ★★★★★ at top of sidebar).
+            # This is the most reliable CTA to open the reviews list.
+            nav_to_reviews = False
+            star_selectors = [
+                'button[jsaction*="rating"]',
+                'span.F7nice',
+                '.DkEaL',                             # rating row container
+                '[aria-label*="estrella"][role]',
+                '[aria-label*="star"][role]',
+                'span[role="img"][aria-label*="5"]',
+            ]
+            for sel in star_selectors:
+                try:
+                    el = await page.wait_for_selector(sel, timeout=3000)
+                    if el:
+                        await el.click()
+                        print(f"[REVIEWS] Opened via star click: '{sel}'")
+                        await asyncio.sleep(3)
+                        nav_to_reviews = True
+                        break
+                except Exception:
+                    pass
+
+            # STRATEGY B: Tab selectors fallback.
+            if not nav_to_reviews:
+                tab_selectors = [
+                    'button[aria-label*="eseña"]',
+                    'button[aria-label*="eview"]',
+                    '[role="tab"]:has-text("Reseñas")',
+                    '[role="tab"]:has-text("Reviews")',
+                    'button:has-text("Reseñas")',
+                    'button:has-text("Reviews")',
+                ]
+                for sel in tab_selectors:
+                    try:
+                        tab = await page.wait_for_selector(sel, timeout=2000)
+                        if tab:
+                            await tab.click()
+                            print(f"[REVIEWS] Opened via tab click: '{sel}'")
+                            await asyncio.sleep(3)
+                            nav_to_reviews = True
+                            break
+                    except Exception:
+                        pass
+
+            if not nav_to_reviews:
+                print("[REVIEWS] WARNING: Could not click into reviews — trying !9m1!1b1 URL directly.")
 
             # --- Pre-scroll to trigger lazy-load ---
             await page.mouse.wheel(0, 500)
