@@ -33,7 +33,7 @@ import requests
 # ---------------------------------------------------------------------------
 
 BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
-BASE_TEMP_DIR = os.path.join(BASE_DIR, "temp", "leads")
+BASE_TEMP_DIR = os.path.join(BASE_DIR, "videos_locales")
 PLACES_BASE  = "https://maps.googleapis.com/maps/api/place"
 
 
@@ -146,26 +146,24 @@ def _call_place_details(place_id: str, fields: str, api_key: str) -> dict | None
     return data.get("result", {})
 
 
-def get_reviews(place_id: str, api_key: str, max_reviews: int = 3) -> list[dict]:
+def get_reviews(place_id: str, api_key: str, max_reviews: int = 3) -> tuple[list[dict], list[dict]]:
     """
-    Fetches up to `max_reviews` reviews for the given Place ID.
-
-    The Places API returns at most 5 reviews (most relevant by default).
-    For the SocialProofREEL video we only need 3.
-
-    Each review dict contains:
-        reviewer_name, review_text, rating, avatar_url
+    Fetches up to `max_reviews` reviews for the given Place ID and its photos.
+    Sorts reviews by rating descending (prioritizes 5 stars).
     """
     print(f"[REVIEWS] Fetching reviews for Place ID: {place_id}")
     result = _call_place_details(
         place_id,
-        "name,rating,reviews",
+        "name,rating,reviews,photos",
         api_key,
     )
     if not result:
-        return []
+        return [], []
 
     raw = result.get("reviews", [])
+    # Sort reviews prioritizing higher ratings (5 stars first)
+    raw.sort(key=lambda x: x.get("rating", 0), reverse=True)
+    
     print(f"[REVIEWS] API returned {len(raw)} reviews. Using top {min(len(raw), max_reviews)}.")
 
     reviews = []
@@ -178,7 +176,8 @@ def get_reviews(place_id: str, api_key: str, max_reviews: int = 3) -> list[dict]
         })
         print(f"[REVIEWS] · {r.get('author_name')} ({r.get('rating')}★) — {r.get('text', '')[:60]}...")
 
-    return reviews
+    photos = result.get("photos", [])
+    return reviews, photos
 
 
 # ---------------------------------------------------------------------------
@@ -187,13 +186,16 @@ def get_reviews(place_id: str, api_key: str, max_reviews: int = 3) -> list[dict]
 
 def download_avatar(avatar_url: str, business_id: str, index: int) -> str | None:
     """
-    Downloads a reviewer profile photo to /app/temp/leads/{business_id}/avatar_{index}.jpg.
+    Downloads a reviewer profile photo to /videos_locales/{business_id}/avatar_{index}.jpg.
     Returns the local path or None on failure.
-    The Renderer reads `avatar_local_path` from metadata.json — no internet required at render time.
+    Forces high-resolution download by modifying the URL size parameter.
     """
     if not avatar_url:
         print(f"[AVATAR] Review {index}: no avatar URL provided.")
         return None
+
+    # Force high-res (e.g. change =s128-c0x00000000-cc-rp-mo to =s1080-c0x00000000-cc-rp-mo)
+    avatar_url = re.sub(r'=s\d+', '=s1080', avatar_url)
 
     lead_dir = os.path.join(BASE_TEMP_DIR, business_id)
     os.makedirs(lead_dir, exist_ok=True)
@@ -205,16 +207,48 @@ def download_avatar(avatar_url: str, business_id: str, index: int) -> str | None
         with open(local_path, "wb") as f:
             for chunk in resp.iter_content(chunk_size=8192):
                 f.write(chunk)
-        print(f"[AVATAR] ✓ Saved: {local_path}")
+        print(f"[AVATAR] ✓ Saved high-res: {local_path}")
         return local_path
     except Exception as e:
         print(f"[AVATAR] ✗ Failed to download avatar {index}: {e}")
         return None
 
 
-def save_metadata(business_id: str, place_info: dict, reviews: list[dict]) -> str:
+def download_place_photo(photo_reference: str, business_id: str, api_key: str) -> str | None:
     """
-    THE BRIDGE: Writes metadata.json — the data contract between Scraper and Renderer.
+    Downloads a background photo of the place using the Google Places Photo API.
+    """
+    if not photo_reference:
+        return None
+
+    lead_dir = os.path.join(BASE_TEMP_DIR, business_id)
+    os.makedirs(lead_dir, exist_ok=True)
+    local_path = os.path.join(lead_dir, "background.jpg")
+
+    url = f"{PLACES_BASE}/photo"
+    params = {
+        "maxwidth": 1080,
+        "photo_reference": photo_reference,
+        "key": api_key
+    }
+
+    try:
+        print(f"[PHOTO] Downloading background photo for {business_id}...")
+        resp = requests.get(url, params=params, stream=True, timeout=20)
+        resp.raise_for_status()
+        with open(local_path, "wb") as f:
+            for chunk in resp.iter_content(chunk_size=8192):
+                f.write(chunk)
+        print(f"[PHOTO] ✓ Saved background: {local_path}")
+        return local_path
+    except Exception as e:
+        print(f"[PHOTO] ✗ Failed to download background photo: {e}")
+        return None
+
+
+def save_metadata(business_id: str, place_info: dict, reviews: list[dict], bg_path: str | None) -> str:
+    """
+    THE BRIDGE: Writes metadata.json — the data contract between Places API and Renderer.
     Status 'ready_for_render' signals the Renderer to pick up this lead.
     """
     lead_dir = os.path.join(BASE_TEMP_DIR, business_id)
@@ -228,6 +262,7 @@ def save_metadata(business_id: str, place_info: dict, reviews: list[dict]) -> st
         "address":        place_info.get("address", ""),
         "place_id":       place_info.get("place_id", ""),
         "status":         "ready_for_render",
+        "background_local_path": bg_path,
         "reviews":        reviews,
     }
 
@@ -271,8 +306,8 @@ def process_lead(query_or_url: str) -> str | None:
         print(f"[ERROR] Could not find business: {e}")
         return None
 
-    # Step 2 — Get Reviews
-    reviews = get_reviews(place_info["place_id"], api_key)
+    # Step 2 — Get Reviews and Photos
+    reviews, photos = get_reviews(place_info["place_id"], api_key)
     if not reviews:
         print("[ERROR] No reviews returned by the API. Stopping.")
         return None
@@ -282,8 +317,16 @@ def process_lead(query_or_url: str) -> str | None:
         local_path = download_avatar(review["avatar_url"], business_id, i)
         review["avatar_local_path"] = local_path  # Renderer reads this field
 
-    # Step 4 — Write bridge contract
-    metadata_path = save_metadata(business_id, place_info, reviews)
+    # Step 4 — Download background photo
+    bg_path = None
+    if photos:
+        # Get the photo_reference of the first photo
+        photo_ref = photos[0].get("photo_reference")
+        if photo_ref:
+            bg_path = download_place_photo(photo_ref, business_id, api_key)
+
+    # Step 5 — Write bridge contract
+    metadata_path = save_metadata(business_id, place_info, reviews, bg_path)
 
     print("--- SUCCESS ---")
     print(f"Business : {place_info['name']} ({place_info['rating']}★)")
