@@ -267,9 +267,13 @@ def render_lead_from_metadata(lead_dir: str) -> str | None:
     reviews        = meta.get("reviews", [])
 
     bg_path = meta.get("background_local_path")
+    # 1. Look for local audio in the business folder
     audio_path = os.path.join(lead_dir, "audio.mp3")
     if not os.path.exists(audio_path):
-        audio_path = None
+        # 2. Fallback to global audio in the project root
+        audio_path = os.path.join(BASE_DIR, "audio.mp3")
+        if not os.path.exists(audio_path):
+            audio_path = None
 
     if not reviews:
         print(f"[RENDER] No reviews in metadata — nothing to render.")
