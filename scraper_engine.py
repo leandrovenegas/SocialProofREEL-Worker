@@ -56,9 +56,18 @@ async def scrape_reviews_with_playwright(url):
             # fetched. 'networkidle' never fires on Google Maps (continuous requests).
             await page.goto(url, wait_until="load", timeout=60000)
             print("[NAV] Page 'load' event fired.")
+            print(f"[NAV] Page title: '{await page.title()}'")
+            print(f"[NAV] Current URL: {page.url}")
 
             # Give JS a moment to hydrate the SPA shell.
             await asyncio.sleep(3)
+
+            # CHECKPOINT SCREENSHOT: Capture what the headless browser sees right
+            # after load, before any interaction. Critical for diagnosing consent
+            # walls, CAPTCHAs, or unexpected redirects.
+            os.makedirs(os.path.dirname(debug_screenshot_path), exist_ok=True)
+            await page.screenshot(path=debug_screenshot_path, full_page=False)
+            print(f"[CHECKPOINT] Screenshot saved → {debug_screenshot_path}")
 
             # RESILIENCE #3: Dismiss Google's cookie/consent banner if present.
             cookie_selectors = [
@@ -70,14 +79,18 @@ async def scrape_reviews_with_playwright(url):
             ]
             for sel in cookie_selectors:
                 try:
-                    btn = await page.wait_for_selector(sel, timeout=3000)
+                    btn = await page.wait_for_selector(sel, timeout=1500)
                     if btn:
                         await btn.click()
                         print(f"[COOKIE] Banner dismissed: '{sel}'")
                         await asyncio.sleep(2)
+                        # Save post-cookie screenshot.
+                        await page.screenshot(path=debug_screenshot_path.replace(".png", "_postcookie.png"), full_page=False)
                         break
                 except Exception:
                     pass
+            else:
+                print("[COOKIE] No banner found — page is clean.")
 
             # RESILIENCE #4: Click the "Reseñas" / "Reviews" tab.
             # The URL lands on the Overview panel; reviews live in a separate tab.
@@ -91,7 +104,7 @@ async def scrape_reviews_with_playwright(url):
             tab_clicked = False
             for sel in reviews_tab_selectors:
                 try:
-                    tab = await page.wait_for_selector(sel, timeout=5000)
+                    tab = await page.wait_for_selector(sel, timeout=2000)
                     if tab:
                         await tab.click()
                         print(f"[TAB] Reviews tab clicked: '{sel}'")
@@ -102,7 +115,16 @@ async def scrape_reviews_with_playwright(url):
                     pass
 
             if not tab_clicked:
-                print("[TAB] WARNING: Could not find a Reviews tab — proceeding anyway.")
+                # Dump all visible buttons/tabs to help identify the correct selector.
+                buttons = await page.query_selector_all('button, [role="tab"]')
+                labels = []
+                for b in buttons[:20]:
+                    lbl = await b.get_attribute("aria-label") or await b.inner_text() or ""
+                    if lbl.strip():
+                        labels.append(lbl.strip()[:60])
+                print(f"[TAB] WARNING: Reviews tab not found. Visible buttons/tabs: {labels}")
+                # Save a screenshot at this point to see current page state.
+                await page.screenshot(path=debug_screenshot_path.replace(".png", "_notab.png"), full_page=False)
 
             # RESILIENCE #5: Gentle scroll to wake up lazy-loaded review cards.
             await page.mouse.wheel(0, 500)
