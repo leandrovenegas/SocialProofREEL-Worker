@@ -23,25 +23,54 @@ async def scrape_reviews_with_playwright(url):
     """
     DUMB SCRAPER: Focuses solely on materializing review data and avatar URLs.
     Does not know about video rendering or cloud uploads.
+
+    RESILIENCE LAYERS:
+      1. Viewport 1280x720 — ensures all elements are within visible bounds.
+      2. Cookie banner handler — dismisses Google's consent wall before scraping.
+      3. Pre-scroll — wakes up lazy-loaded review cards before the main wait.
     """
     reviews_data = []
     async with async_playwright() as p:
         # Launching Chromium as pre-installed in the Docker container
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            viewport={"width": 1280, "height": 720}  # RESILIENCE #1: fixed viewport
         )
         page = await context.new_page()
-        
+
         try:
             print(f"Navigating to: {url}")
             await page.goto(url, wait_until='networkidle', timeout=60000)
 
-            # Wait for the main reviews container to load
-            # This selector is common for the reviews tab or section
-            await page.wait_for_selector('div[data-review-id]', timeout=20000)
+            # RESILIENCE #2: Dismiss Google's cookie consent banner if present.
+            # Google uses localised button text; we try the most common variants.
+            cookie_button_selectors = [
+                'button:has-text("Aceptar todo")',
+                'button:has-text("Accept all")',
+                'button:has-text("Tout accepter")',
+                'form[action*="consent"] button',
+            ]
+            for selector in cookie_button_selectors:
+                try:
+                    btn = await page.wait_for_selector(selector, timeout=4000)
+                    if btn:
+                        await btn.click()
+                        print(f"Cookie banner dismissed using: '{selector}'")
+                        await asyncio.sleep(1.5)  # brief pause for page to settle
+                        break
+                except Exception:
+                    pass  # selector not found — try next one
 
-            # Scroll to ensure images/reviews are loaded
+            # RESILIENCE #3: Gentle pre-scroll to wake up lazy-loaded review cards.
+            await page.mouse.wheel(0, 500)
+            await asyncio.sleep(1)
+
+            # Now wait for the reviews section with the full timeout budget.
+            print("Waiting for review cards (div[data-review-id])...")
+            await page.wait_for_selector('div[data-review-id]', timeout=25000)
+
+            # Deeper scroll to load more reviews / avatars
             for _ in range(3):
                 await page.mouse.wheel(0, 2000)
                 await asyncio.sleep(2)
