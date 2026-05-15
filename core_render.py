@@ -39,8 +39,8 @@ BASE_DIR      = os.path.dirname(os.path.abspath(__file__))
 FONT_PATH     = os.path.join(BASE_DIR, "Montserrat-Bold.ttf")
 BASE_TEMP_DIR = os.path.join(BASE_DIR, "temp", "leads")
 
-SUPABASE_URL  = os.getenv("SUPABASE_URL")
-SUPABASE_KEY  = os.getenv("SUPABASE_KEY")
+SUPABASE_URL  = os.getenv("SUPABASE_URL", "").strip()
+SUPABASE_KEY  = os.getenv("SUPABASE_KEY", "").strip()
 
 BUNNY_ACCESS_KEY = os.getenv("BUNNY_ACCESS_KEY")
 STORAGE_ZONE     = os.getenv("STORAGE_ZONE")
