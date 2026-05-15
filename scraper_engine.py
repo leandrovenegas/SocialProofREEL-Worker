@@ -144,96 +144,115 @@ async def scrape_reviews_with_playwright(url):
             if not cookie_dismissed:
                 print("[COOKIE] No banner detected — continuing.")
 
-            # --- Navigate to Reviews panel ---
-            # STRATEGY A: Click the overall star-rating widget.
-            # Confirmed visible in debug screenshot (5.0 ★★★★★ at top of sidebar).
-            # This is the most reliable CTA to open the reviews list.
-            nav_to_reviews = False
-            star_selectors = [
-                'button[jsaction*="rating"]',
-                'span.F7nice',
-                '.DkEaL',                             # rating row container
-                '[aria-label*="estrella"][role]',
-                '[aria-label*="star"][role]',
-                'span[role="img"][aria-label*="5"]',
-            ]
-            for sel in star_selectors:
-                try:
-                    el = await page.wait_for_selector(sel, timeout=3000)
-                    if el:
-                        await el.click()
-                        print(f"[REVIEWS] Opened via star click: '{sel}'")
-                        await asyncio.sleep(3)
-                        nav_to_reviews = True
-                        break
-                except Exception:
-                    pass
+            # --- NO AUTO-CLICK NAVIGATION ---
+            # Root cause from debug screenshot: .DkEaL is the CATEGORY tag
+            # ("Cuidador de mascotas"), not the star rating. Clicking it triggered
+            # a category search, navigating AWAY from the business profile.
+            # The !9m1!1b1 URL flag is sufficient to request the reviews panel.
+            # We must NOT click anything that could navigate elsewhere.
+            print("[NAV] Relying on !9m1!1b1 URL flag — no click navigation.")
 
-            # STRATEGY B: Tab selectors fallback.
-            if not nav_to_reviews:
-                tab_selectors = [
-                    'button[aria-label*="eseña"]',
-                    'button[aria-label*="eview"]',
-                    '[role="tab"]:has-text("Reseñas")',
-                    '[role="tab"]:has-text("Reviews")',
-                    'button:has-text("Reseñas")',
-                    'button:has-text("Reviews")',
-                ]
-                for sel in tab_selectors:
-                    try:
-                        tab = await page.wait_for_selector(sel, timeout=2000)
-                        if tab:
-                            await tab.click()
-                            print(f"[REVIEWS] Opened via tab click: '{sel}'")
-                            await asyncio.sleep(3)
-                            nav_to_reviews = True
-                            break
-                    except Exception:
-                        pass
+            # --- Scroll the SIDEBAR (not the map) ---
+            # Reviews live in the scrollable LEFT PANEL, not the main map area.
+            # page.mouse.wheel at default position scrolls the MAP.
+            # We find the tallest scrollable child of div[role="main"] and scroll it.
+            for scroll_pass in range(4):
+                scrolled = await page.evaluate("""
+                    () => {
+                        const candidates = [
+                            'div[role="main"] .m6QErb[aria-label]',
+                            'div[role="main"] .m6QErb',
+                            '.TFQHme .m6QErb',
+                            '.section-scrollbox',
+                            'div[role="main"]',
+                        ];
+                        for (const sel of candidates) {
+                            const el = document.querySelector(sel);
+                            if (el && el.scrollHeight > el.clientHeight) {
+                                el.scrollTop += 1200;
+                                return 'Scrolled: ' + sel + ' (' + el.scrollTop + 'px)';
+                            }
+                        }
+                        // Ultimate fallback: find the tallest scrollable element anywhere
+                        let best = null, bestH = 0;
+                        for (const e of document.querySelectorAll('*')) {
+                            if (e.scrollHeight > e.clientHeight + 100 && e.scrollHeight > bestH) {
+                                best = e; bestH = e.scrollHeight;
+                            }
+                        }
+                        if (best) {
+                            best.scrollTop += 1200;
+                            return 'Fallback scroll: ' + best.tagName + '.' + best.className.substring(0,50);
+                        }
+                        return 'No scrollable container found';
+                    }
+                """)
+                print(f"[SCROLL {scroll_pass+1}/4] {scrolled}")
+                await asyncio.sleep(2)
 
-            if not nav_to_reviews:
-                print("[REVIEWS] WARNING: Could not click into reviews — trying !9m1!1b1 URL directly.")
+            # Also hover over the left panel and wheel-scroll it.
+            await page.mouse.move(200, 400)
+            await page.mouse.wheel(0, 3000)
+            await asyncio.sleep(2)
 
-            # --- Pre-scroll to trigger lazy-load ---
-            await page.mouse.wheel(0, 500)
-            await asyncio.sleep(1.5)
+            # --- SIDEBAR HTML DUMP for selector discovery ---
+            # Dumps the first 3000 chars of the sidebar HTML so we can see
+            # what class names Google is actually using for review elements.
+            sidebar_html = await page.evaluate("""
+                () => {
+                    const sidebar = document.querySelector('div[role="main"]');
+                    return sidebar ? sidebar.innerHTML.substring(0, 3000) : 'No sidebar found';
+                }
+            """)
+            print(f"[HTML] Sidebar innerHTML (first 3000): {sidebar_html}")
 
             # --- Wait for review cards ---
-            # Primary selector: standard Google Maps review card.
-            # Fallback selectors added for DOM variations.
+            # Selectors ordered from most to least specific.
+            # Includes 2024-era obfuscated Google Maps class names.
             review_selectors = [
-                "div[data-review-id]",
-                '[data-review-id]',
-                '.jftiEf',          # alternate review container class
-                '[class*="review"]',
+                "div[data-review-id]",          # canonical — works in most versions
+                "[data-review-id]",              # any tag with this attribute
+                ".jftiEf",                       # 2023 review card container
+                ".GHT2ce",                       # 2024 review card container
+                ".lMbq3e",                       # review list item
+                ".jJc9Ad",                       # review tile
+                ".WMbnJf",                       # review list wrapper
+                ".bwb7ce",                       # review text container
+                ".wiI7pd",                       # review text (seen in Maps 2024)
+                '[jscontroller*="review"]',      # any jscontroller with "review"
+                '[aria-label*="reseña de"]',     # individual review aria label (es)
+                '[aria-label*="review by"]',     # individual review aria label (en)
             ]
 
             found_selector = None
             for sel in review_selectors:
                 try:
-                    print(f"[WAIT] Trying selector: {sel}")
-                    await page.wait_for_selector(sel, timeout=15000)
+                    print(f"[WAIT] Trying: {sel}")
+                    await page.wait_for_selector(sel, timeout=8000)
                     found_selector = sel
-                    print(f"[WAIT] ✓ Review cards detected with: {sel}")
+                    print(f"[WAIT] ✓ Found with: {sel}")
                     break
                 except Exception:
-                    print(f"[WAIT] ✗ Not found: {sel}")
+                    print(f"[WAIT] ✗ Miss: {sel}")
 
             if not found_selector:
-                # Dump all data-* attributes to help find the real selector.
-                data_attrs = await page.evaluate("""
+                # Final diagnostic: dump all unique class names in the sidebar.
+                all_classes = await page.evaluate("""
                     () => {
-                        const els = document.querySelectorAll('[data-review-id],[data-hveid],[data-local-attribute]');
-                        return Array.from(els).slice(0, 10).map(e => ({
-                            tag: e.tagName,
-                            id: e.id,
-                            cls: e.className.substring(0,80),
-                            attrs: Array.from(e.attributes).map(a => a.name + '=' + a.value).join(' ').substring(0,120)
-                        }));
+                        const sidebar = document.querySelector('div[role="main"]');
+                        if (!sidebar) return [];
+                        const classes = new Set();
+                        sidebar.querySelectorAll('*').forEach(el => {
+                            el.className && el.className.toString().split(' ').forEach(c => {
+                                if (c.length > 2 && c.length < 15) classes.add(c);
+                            });
+                        });
+                        return Array.from(classes).slice(0, 80);
                     }
                 """)
-                print(f"[DOM] data-review-id elements found: {data_attrs}")
+                print(f"[DOM] All sidebar classes: {all_classes}")
                 raise TimeoutError("No review card selector matched after all fallbacks.")
+
 
             # --- Screenshot after reviews loaded ---
             await page.screenshot(
