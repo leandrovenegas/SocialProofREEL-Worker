@@ -13,55 +13,115 @@ BASE_TEMP_DIR = os.path.join(BASE_DIR, "temp", "leads")
 TEMP_DIR = os.path.join(BASE_DIR, "temp")
 
 
+# ---------------------------------------------------------------------------
+# UTILITY: Business ID
+# ---------------------------------------------------------------------------
+
 def extract_business_id(url):
-    """
-    Extracts a unique business ID from the Google Maps URL.
-    Used to create the directory structure for the data bridge.
-    """
+    """Stable hash of the URL used as the directory key for the data bridge."""
     return hashlib.md5(url.encode("utf-8")).hexdigest()
 
 
+# ---------------------------------------------------------------------------
+# UTILITY: Place ID extractor
+# ---------------------------------------------------------------------------
+
+def extract_place_id(url):
+    """
+    Extracts the canonical Place ID (ChIJ...) from the !19s segment of a
+    Google Maps URL.
+
+    Example segment: !19sChIJ16H8bHUvAwER9OJ41xIye-g
+    Returns:          ChIJ16H8bHUvAwER9OJ41xIye-g
+    """
+    match = re.search(r"!19s([A-Za-z0-9_\-]+)", url)
+    if match:
+        return match.group(1)
+    return None
+
+
+# ---------------------------------------------------------------------------
+# STRATEGY A: Google Places API (fast, reliable, JSON)
+# ---------------------------------------------------------------------------
+
+def scrape_via_places_api(place_id, api_key, language="es-419"):
+    """
+    Fetches reviews using the Google Places Details API.
+
+    Returns up to 5 most-recent reviews as a list of dicts.
+    Requires GOOGLE_PLACES_API_KEY in the environment.
+
+    API docs: https://developers.google.com/maps/documentation/places/web-service/details
+    """
+    print(f"[API] Fetching reviews for Place ID: {place_id}")
+    endpoint = "https://maps.googleapis.com/maps/api/place/details/json"
+    params = {
+        "place_id": place_id,
+        "fields": "name,rating,reviews",
+        "language": language,
+        "key": api_key,
+    }
+
+    try:
+        response = requests.get(endpoint, params=params, timeout=15)
+        response.raise_for_status()
+        data = response.json()
+    except Exception as e:
+        print(f"[API] Request failed: {e}")
+        return []
+
+    status = data.get("status")
+    if status != "OK":
+        print(f"[API] API returned status: {status} — {data.get('error_message', '')}")
+        return []
+
+    raw_reviews = data.get("result", {}).get("reviews", [])
+    print(f"[API] Received {len(raw_reviews)} reviews from Places API.")
+
+    reviews = []
+    for r in raw_reviews[:3]:  # We only need 3 for a video
+        reviews.append({
+            "reviewer_name": r.get("author_name", "Anonymous"),
+            "review_text": r.get("text", ""),
+            "rating": r.get("rating", 0),
+            "avatar_url": r.get("profile_photo_url", ""),
+        })
+        print(f"[API] Review: '{r.get('author_name')}' ({r.get('rating')}★)")
+
+    return reviews
+
+
+# ---------------------------------------------------------------------------
+# STRATEGY B: Playwright DOM scraping (fallback — no API key needed)
+# ---------------------------------------------------------------------------
+
 def build_reviews_url(url):
     """
-    Transforms any Google Maps place URL into one that directly opens
-    the reviews panel by injecting the '!9m1!1b1' data flag.
-
-    This eliminates the need to detect and click a Reviews tab.
-    If the URL already contains the flag, it is returned unchanged.
-
-    Also strips session-specific params (authuser, rclk) that may
-    trigger bot-detection redirects.
+    Transforms any Google Maps place URL into one that directly requests
+    the reviews panel by appending the !9m1!1b1 data flag.
+    Strips session-specific params (authuser, rclk) to reduce bot-detection.
     """
-    # Parse into base path and query string first.
     if "?" in url:
         base, qs = url.split("?", 1)
     else:
         base, qs = url, ""
 
-    # Remove session-specific params that may cause bot-detection redirects.
     qs_parts = [p for p in qs.split("&") if not re.match(r"(authuser|rclk)=", p) and p]
     clean_qs = "&".join(qs_parts)
 
-    # If !9m1!1b1 already present, return with cleaned query string only.
     if "!9m1!1b1" in base:
         return f"{base}?{clean_qs}" if clean_qs else base
 
-    # Append the reviews-direct flag to the path.
     reviews_base = f"{base}!9m1!1b1"
     return f"{reviews_base}?{clean_qs}" if clean_qs else reviews_base
 
 
-async def scrape_reviews_with_playwright(url):
+async def scrape_via_playwright(url):
     """
-    DUMB SCRAPER: Focuses solely on materializing review data and avatar URLs.
-    Does not know about video rendering or cloud uploads.
+    FALLBACK SCRAPER: Uses Playwright to load the Google Maps page in a
+    headless browser and extracts reviews from the rendered DOM.
 
-    STRATEGY:
-      - Navigate directly to the reviews URL (!9m1!1b1 flag) — no tab clicking.
-      - Use wait_until='load' — Google Maps never reaches 'networkidle'.
-      - Dump page title, URL, and visible text after load for diagnosis.
-      - Save checkpoint screenshots at every critical stage.
-      - Cookie banner handling before waiting for review elements.
+    Activated only when GOOGLE_PLACES_API_KEY is not set.
     """
     reviews_url = build_reviews_url(url)
     reviews_data = []
@@ -87,250 +147,198 @@ async def scrape_reviews_with_playwright(url):
             viewport={"width": 1280, "height": 720},
             locale="es-419",
         )
-
-        # Hide the webdriver flag that signals automation.
         await context.add_init_script(
             "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
         )
-
         page = await context.new_page()
 
         try:
-            print(f"[NAV] Reviews URL: {reviews_url}")
+            print(f"[PW] Navigating to: {reviews_url}")
             await page.goto(reviews_url, wait_until="load", timeout=60000)
 
-            # Print immediate diagnostics.
             title = await page.title()
-            current_url = page.url
-            print(f"[NAV] Page title : '{title}'")
-            print(f"[NAV] Current URL: {current_url}")
+            print(f"[PW] Title: '{title}' | URL: {page.url}")
 
-            # Wait for SPA hydration.
             await asyncio.sleep(4)
 
-            # --- CHECKPOINT SCREENSHOT (stage 1) ---
+            # Checkpoint screenshot
             await page.screenshot(path=debug_ss, full_page=False)
-            print(f"[SS1] Checkpoint screenshot → {debug_ss}")
+            print(f"[PW] Checkpoint screenshot → {debug_ss}")
 
-            # --- Dump visible text for remote diagnosis ---
-            body_text = await page.evaluate("() => document.body.innerText")
-            excerpt = " | ".join(body_text.split("\n")[:15])
-            print(f"[TEXT] Visible text excerpt: {excerpt[:500]}")
-
-            # --- Cookie / consent banner ---
-            cookie_selectors = [
-                'button:has-text("Aceptar todo")',
-                'button:has-text("Accept all")',
-                'button:has-text("Tout accepter")',
-                'button[aria-label*="Accept"]',
-                'form[action*="consent"] button',
-            ]
-            cookie_dismissed = False
-            for sel in cookie_selectors:
+            # Cookie banner
+            for sel in ['button:has-text("Aceptar todo")', 'button:has-text("Accept all")',
+                        'form[action*="consent"] button']:
                 try:
                     btn = await page.wait_for_selector(sel, timeout=2000)
                     if btn:
                         await btn.click()
-                        print(f"[COOKIE] Banner dismissed: '{sel}'")
+                        print(f"[PW] Cookie dismissed: {sel}")
                         await asyncio.sleep(2)
-                        cookie_dismissed = True
-                        await page.screenshot(
-                            path=debug_ss.replace(".png", "_post_cookie.png"),
-                            full_page=False,
-                        )
                         break
                 except Exception:
                     pass
-            if not cookie_dismissed:
-                print("[COOKIE] No banner detected — continuing.")
 
-            # --- NO AUTO-CLICK NAVIGATION ---
-            # Root cause from debug screenshot: .DkEaL is the CATEGORY tag
-            # ("Cuidador de mascotas"), not the star rating. Clicking it triggered
-            # a category search, navigating AWAY from the business profile.
-            # The !9m1!1b1 URL flag is sufficient to request the reviews panel.
-            # We must NOT click anything that could navigate elsewhere.
-            print("[NAV] Relying on !9m1!1b1 URL flag — no click navigation.")
-
-            # --- Scroll the SIDEBAR (not the map) ---
-            # Reviews live in the scrollable LEFT PANEL, not the main map area.
-            # page.mouse.wheel at default position scrolls the MAP.
-            # We find the tallest scrollable child of div[role="main"] and scroll it.
-            for scroll_pass in range(4):
-                scrolled = await page.evaluate("""
+            # Scroll the SIDEBAR (not the map)
+            for i in range(4):
+                result = await page.evaluate("""
                     () => {
-                        const candidates = [
+                        const sels = [
                             'div[role="main"] .m6QErb[aria-label]',
                             'div[role="main"] .m6QErb',
                             '.TFQHme .m6QErb',
-                            '.section-scrollbox',
                             'div[role="main"]',
                         ];
-                        for (const sel of candidates) {
-                            const el = document.querySelector(sel);
+                        for (const s of sels) {
+                            const el = document.querySelector(s);
                             if (el && el.scrollHeight > el.clientHeight) {
                                 el.scrollTop += 1200;
-                                return 'Scrolled: ' + sel + ' (' + el.scrollTop + 'px)';
+                                return s + ' @' + el.scrollTop;
                             }
                         }
-                        // Ultimate fallback: find the tallest scrollable element anywhere
-                        let best = null, bestH = 0;
-                        for (const e of document.querySelectorAll('*')) {
-                            if (e.scrollHeight > e.clientHeight + 100 && e.scrollHeight > bestH) {
-                                best = e; bestH = e.scrollHeight;
-                            }
-                        }
-                        if (best) {
-                            best.scrollTop += 1200;
-                            return 'Fallback scroll: ' + best.tagName + '.' + best.className.substring(0,50);
-                        }
-                        return 'No scrollable container found';
+                        return 'no-scroll';
                     }
                 """)
-                print(f"[SCROLL {scroll_pass+1}/4] {scrolled}")
+                print(f"[PW] Scroll {i+1}: {result}")
                 await asyncio.sleep(2)
 
-            # Also hover over the left panel and wheel-scroll it.
+            # Hover over sidebar and mouse-wheel it
             await page.mouse.move(200, 400)
             await page.mouse.wheel(0, 3000)
             await asyncio.sleep(2)
 
-            # --- SIDEBAR HTML DUMP for selector discovery ---
-            # Dumps the first 3000 chars of the sidebar HTML so we can see
-            # what class names Google is actually using for review elements.
+            # Dump sidebar HTML for debugging
             sidebar_html = await page.evaluate("""
                 () => {
-                    const sidebar = document.querySelector('div[role="main"]');
-                    return sidebar ? sidebar.innerHTML.substring(0, 3000) : 'No sidebar found';
+                    const el = document.querySelector('div[role="main"]');
+                    return el ? el.innerHTML.substring(0, 3000) : 'no sidebar';
                 }
             """)
-            print(f"[HTML] Sidebar innerHTML (first 3000): {sidebar_html}")
+            print(f"[PW] Sidebar HTML (3000): {sidebar_html}")
 
-            # --- Wait for review cards ---
-            # Selectors ordered from most to least specific.
-            # Includes 2024-era obfuscated Google Maps class names.
+            # Try review selectors
             review_selectors = [
-                "div[data-review-id]",          # canonical — works in most versions
-                "[data-review-id]",              # any tag with this attribute
-                ".jftiEf",                       # 2023 review card container
-                ".GHT2ce",                       # 2024 review card container
-                ".lMbq3e",                       # review list item
-                ".jJc9Ad",                       # review tile
-                ".WMbnJf",                       # review list wrapper
-                ".bwb7ce",                       # review text container
-                ".wiI7pd",                       # review text (seen in Maps 2024)
-                '[jscontroller*="review"]',      # any jscontroller with "review"
-                '[aria-label*="reseña de"]',     # individual review aria label (es)
-                '[aria-label*="review by"]',     # individual review aria label (en)
+                "div[data-review-id]", "[data-review-id]",
+                ".jftiEf", ".GHT2ce", ".lMbq3e", ".jJc9Ad",
+                ".WMbnJf", ".wiI7pd", ".bwb7ce",
+                '[jscontroller*="review"]',
+                '[aria-label*="reseña de"]', '[aria-label*="review by"]',
             ]
-
-            found_selector = None
+            found = None
             for sel in review_selectors:
                 try:
-                    print(f"[WAIT] Trying: {sel}")
                     await page.wait_for_selector(sel, timeout=8000)
-                    found_selector = sel
-                    print(f"[WAIT] ✓ Found with: {sel}")
+                    found = sel
+                    print(f"[PW] ✓ Found reviews with: {sel}")
                     break
                 except Exception:
-                    print(f"[WAIT] ✗ Miss: {sel}")
+                    print(f"[PW] ✗ {sel}")
 
-            if not found_selector:
-                # Final diagnostic: dump all unique class names in the sidebar.
-                all_classes = await page.evaluate("""
+            if not found:
+                classes = await page.evaluate("""
                     () => {
-                        const sidebar = document.querySelector('div[role="main"]');
-                        if (!sidebar) return [];
-                        const classes = new Set();
-                        sidebar.querySelectorAll('*').forEach(el => {
-                            el.className && el.className.toString().split(' ').forEach(c => {
-                                if (c.length > 2 && c.length < 15) classes.add(c);
+                        const sb = document.querySelector('div[role="main"]');
+                        if (!sb) return [];
+                        const s = new Set();
+                        sb.querySelectorAll('*').forEach(e => {
+                            (e.className || '').toString().split(' ').forEach(c => {
+                                if (c.length > 2 && c.length < 15) s.add(c);
                             });
                         });
-                        return Array.from(classes).slice(0, 80);
+                        return [...s].slice(0, 80);
                     }
                 """)
-                print(f"[DOM] All sidebar classes: {all_classes}")
-                raise TimeoutError("No review card selector matched after all fallbacks.")
+                print(f"[PW] Sidebar classes: {classes}")
+                raise TimeoutError("No review selector matched.")
 
-
-            # --- Screenshot after reviews loaded ---
-            await page.screenshot(
-                path=debug_ss.replace(".png", "_reviews_loaded.png"), full_page=False
-            )
-            print(f"[SS2] Reviews-loaded screenshot saved.")
-
-            # Deep scroll to materialize avatars.
+            # Deep scroll to load avatars
             for _ in range(4):
                 await page.mouse.wheel(0, 2000)
                 await asyncio.sleep(2)
 
-            review_elements = await page.query_selector_all(found_selector)
-            print(f"[PARSE] Found {len(review_elements)} review elements.")
+            review_elements = await page.query_selector_all(found)
+            print(f"[PW] Parsing {len(review_elements)} review elements.")
 
-            for i, review_elem in enumerate(review_elements[:3]):
-                # --- Text ---
-                text_elem = await review_elem.query_selector(
-                    ".MyEned, span[jsaction*='full-review'], .wiI7pd, .Jtu6Td"
-                )
-                text = (await text_elem.inner_text()).strip() if text_elem else ""
+            for i, el in enumerate(review_elements[:3]):
+                text_el = await el.query_selector(".MyEned, .wiI7pd, .Jtu6Td, span[jsaction*='full-review']")
+                text = (await text_el.inner_text()).strip() if text_el else ""
 
-                # --- Rating (bilingual aria-label) ---
-                rating_elem = await review_elem.query_selector(
-                    '[aria-label*="star"], [aria-label*="estrella"]'
-                )
-                rating_label = (
-                    await rating_elem.get_attribute("aria-label") if rating_elem else "0"
-                )
-                rating_match = re.search(r"(\d+)", rating_label)
-                rating = int(rating_match.group(1)) if rating_match else 0
+                rating_el = await el.query_selector('[aria-label*="star"], [aria-label*="estrella"]')
+                rl = await rating_el.get_attribute("aria-label") if rating_el else "0"
+                rm = re.search(r"(\d+)", rl)
+                rating = int(rm.group(1)) if rm else 0
 
-                # --- Name ---
-                name_elem = await review_elem.query_selector(".d4r55, .NfpymFe, .WNxzHc")
-                name = (await name_elem.inner_text()).strip() if name_elem else "Anonymous"
+                name_el = await el.query_selector(".d4r55, .NfpymFe, .WNxzHc")
+                name = (await name_el.inner_text()).strip() if name_el else "Anonymous"
 
-                # --- Avatar ---
-                avatar_img = await review_elem.query_selector(
-                    'img[src*="googleusercontent.com"]'
-                )
-                avatar_url = await avatar_img.get_attribute("src") if avatar_img else ""
+                avatar_el = await el.query_selector('img[src*="googleusercontent.com"]')
+                avatar_url = await avatar_el.get_attribute("src") if avatar_el else ""
                 if avatar_url and "=s" in avatar_url:
                     avatar_url = re.sub(r"=s\d+.*", "=s256-c", avatar_url)
 
-                reviews_data.append(
-                    {
-                        "reviewer_name": name,
-                        "review_text": text,
-                        "rating": rating,
-                        "avatar_url": avatar_url,
-                    }
-                )
-                print(f"[PARSE] Review {i + 1}: '{name}' ({rating}★) — {text[:60]}...")
+                reviews_data.append({
+                    "reviewer_name": name,
+                    "review_text": text,
+                    "rating": rating,
+                    "avatar_url": avatar_url,
+                })
+                print(f"[PW] Review {i+1}: '{name}' ({rating}★)")
 
         except Exception as e:
-            print(f"[ERROR] Scraping failed: {e}")
+            print(f"[PW] Error: {e}")
             try:
                 await page.screenshot(path=debug_ss.replace(".png", "_error.png"), full_page=False)
-                print(f"[SS_ERR] Error screenshot saved → {debug_ss.replace('.png', '_error.png')}")
-            except Exception as ss_err:
-                print(f"[SS_ERR] Could not save screenshot: {ss_err}")
+                print(f"[PW] Error screenshot saved.")
+            except Exception:
+                pass
         finally:
             await browser.close()
 
     return reviews_data
 
 
+# ---------------------------------------------------------------------------
+# PUBLIC ENTRYPOINT: scrape_reviews (chooses strategy automatically)
+# ---------------------------------------------------------------------------
+
+async def scrape_reviews(url):
+    """
+    Chooses the scraping strategy based on available credentials:
+
+    1. GOOGLE_PLACES_API_KEY set → Places API (fast, reliable, JSON)
+    2. No API key              → Playwright DOM scraping (fallback)
+    """
+    api_key = os.environ.get("GOOGLE_PLACES_API_KEY", "").strip()
+
+    if api_key:
+        place_id = extract_place_id(url)
+        if place_id:
+            print(f"[STRATEGY] Using Google Places API (Place ID: {place_id})")
+            reviews = scrape_via_places_api(place_id, api_key)
+            if reviews:
+                return reviews
+            print("[STRATEGY] Places API returned 0 results — falling back to Playwright.")
+        else:
+            print("[STRATEGY] Could not extract Place ID from URL — falling back to Playwright.")
+    else:
+        print("[STRATEGY] No GOOGLE_PLACES_API_KEY — using Playwright fallback.")
+
+    return await scrape_via_playwright(url)
+
+
+# ---------------------------------------------------------------------------
+# MATERIALIZER: Download avatar locally
+# ---------------------------------------------------------------------------
+
 def download_avatar(avatar_url, business_id, review_index):
     """
-    MATERIALIZER: Downloads the avatar to the local lead folder.
-    This ensures the Renderer doesn't need internet access.
+    Downloads the reviewer avatar to the local lead folder.
+    Ensures the Renderer doesn't need internet access at render time.
     """
     if not avatar_url:
         return None
 
     lead_dir = os.path.join(BASE_TEMP_DIR, business_id)
     os.makedirs(lead_dir, exist_ok=True)
-
     local_path = os.path.join(lead_dir, f"avatar_{review_index}.jpg")
 
     try:
@@ -339,19 +347,24 @@ def download_avatar(avatar_url, business_id, review_index):
         with open(local_path, "wb") as f:
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
+        print(f"[AVATAR] Saved: {local_path}")
         return local_path
     except Exception as e:
-        print(f"Error downloading avatar {review_index}: {e}")
+        print(f"[AVATAR] Error downloading avatar {review_index}: {e}")
         return None
 
 
+# ---------------------------------------------------------------------------
+# BRIDGE: Save metadata.json contract
+# ---------------------------------------------------------------------------
+
 def save_metadata(business_id, reviews_data):
     """
-    THE BRIDGE: Generates the metadata.json contract.
+    THE BRIDGE: Writes metadata.json so the Renderer knows what to process.
+    Status 'ready_for_render' signals the Renderer to pick it up.
     """
     lead_dir = os.path.join(BASE_TEMP_DIR, business_id)
     os.makedirs(lead_dir, exist_ok=True)
-
     metadata_path = os.path.join(lead_dir, "metadata.json")
 
     with open(metadata_path, "w", encoding="utf-8") as f:
@@ -365,37 +378,41 @@ def save_metadata(business_id, reviews_data):
             ensure_ascii=False,
             indent=4,
         )
-
     return metadata_path
 
 
+# ---------------------------------------------------------------------------
+# POC RUNNER: test_single_url
+# ---------------------------------------------------------------------------
+
 async def test_single_url(url):
     """
-    POC: Validates that the Scraper creates the local bridge folder correctly.
+    Validates the full Scraper → Bridge pipeline for a single URL.
+    Run manually to inspect metadata.json before launching the Renderer.
     """
     print("--- SCRAPER ENGINE START ---")
     business_id = extract_business_id(url)
     print(f"Lead ID: {business_id}")
 
-    # 1. Scrape
-    reviews_data = await scrape_reviews_with_playwright(url)
+    # 1. Scrape (auto-selects strategy)
+    reviews_data = await scrape_reviews(url)
 
     if not reviews_data:
         print("No reviews found. Stopping.")
         return
 
-    # 2. Materialize Assets
+    # 2. Materialize avatars
     for i, review in enumerate(reviews_data):
         print(f"Processing review {i + 1}...")
         local_path = download_avatar(review["avatar_url"], business_id, i)
-        review["avatar_local_path"] = local_path  # The Renderer will use this field
+        review["avatar_local_path"] = local_path  # Renderer reads this field
 
-    # 3. Create Bridge Contract
+    # 3. Write bridge contract
     metadata_path = save_metadata(business_id, reviews_data)
 
     print("--- SUCCESS ---")
-    print(f"Folder Materialized: {os.path.join(BASE_TEMP_DIR, business_id)}")
-    print(f"Metadata Contract: {metadata_path}")
+    print(f"Folder : {os.path.join(BASE_TEMP_DIR, business_id)}")
+    print(f"Contract: {metadata_path}")
 
 
 if __name__ == "__main__":
