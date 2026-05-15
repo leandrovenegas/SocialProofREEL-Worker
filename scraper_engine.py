@@ -25,96 +25,148 @@ async def scrape_reviews_with_playwright(url):
     Does not know about video rendering or cloud uploads.
 
     RESILIENCE LAYERS:
-      1. Viewport 1280x720 — ensures all elements are within visible bounds.
-      2. Cookie banner handler — dismisses Google's consent wall before scraping.
-      3. Pre-scroll — wakes up lazy-loaded review cards before the main wait.
+      1. wait_until='load'  — Google Maps never reaches networkidle; use 'load' instead.
+      2. Viewport 1280x720  — ensures all elements are within visible bounds.
+      3. Cookie banner      — dismisses Google's consent wall before interacting.
+      4. Reviews tab click  — URL lands on Overview; must click the Reviews tab.
+      5. Pre-scroll         — wakes up lazy-loaded review cards before the wait.
+      6. Debug screenshot   — saved to /app/temp/debug_screenshot.png on any failure.
     """
     reviews_data = []
     async with async_playwright() as p:
-        # Launching Chromium as pre-installed in the Docker container
-        browser = await p.chromium.launch(headless=True)
+        browser = await p.chromium.launch(
+            headless=True,
+            args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
+        )
         context = await browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            viewport={"width": 1280, "height": 720}  # RESILIENCE #1: fixed viewport
+            user_agent=(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36"
+            ),
+            viewport={"width": 1280, "height": 720},   # RESILIENCE #2
+            locale="es-419",
         )
         page = await context.new_page()
+        debug_screenshot_path = os.path.join(BASE_DIR, "temp", "debug_screenshot.png")
 
         try:
-            print(f"Navigating to: {url}")
-            await page.goto(url, wait_until='networkidle', timeout=60000)
+            print(f"[NAV] Navigating to: {url}")
+            # RESILIENCE #1: 'load' fires as soon as the HTML is parsed + resources
+            # fetched. 'networkidle' never fires on Google Maps (continuous requests).
+            await page.goto(url, wait_until="load", timeout=60000)
+            print("[NAV] Page 'load' event fired.")
 
-            # RESILIENCE #2: Dismiss Google's cookie consent banner if present.
-            # Google uses localised button text; we try the most common variants.
-            cookie_button_selectors = [
+            # Give JS a moment to hydrate the SPA shell.
+            await asyncio.sleep(3)
+
+            # RESILIENCE #3: Dismiss Google's cookie/consent banner if present.
+            cookie_selectors = [
                 'button:has-text("Aceptar todo")',
                 'button:has-text("Accept all")',
                 'button:has-text("Tout accepter")',
+                'button[aria-label*="Accept"]',
                 'form[action*="consent"] button',
             ]
-            for selector in cookie_button_selectors:
+            for sel in cookie_selectors:
                 try:
-                    btn = await page.wait_for_selector(selector, timeout=4000)
+                    btn = await page.wait_for_selector(sel, timeout=3000)
                     if btn:
                         await btn.click()
-                        print(f"Cookie banner dismissed using: '{selector}'")
-                        await asyncio.sleep(1.5)  # brief pause for page to settle
+                        print(f"[COOKIE] Banner dismissed: '{sel}'")
+                        await asyncio.sleep(2)
                         break
                 except Exception:
-                    pass  # selector not found — try next one
+                    pass
 
-            # RESILIENCE #3: Gentle pre-scroll to wake up lazy-loaded review cards.
+            # RESILIENCE #4: Click the "Reseñas" / "Reviews" tab.
+            # The URL lands on the Overview panel; reviews live in a separate tab.
+            reviews_tab_selectors = [
+                'button[aria-label*="eseña"]',           # Reseñas (es)
+                'button[aria-label*="eview"]',           # Reviews (en)
+                '[role="tab"]:has-text("Reseñas")',
+                '[role="tab"]:has-text("Reviews")',
+                'button[jsaction*="reviews"]',
+            ]
+            tab_clicked = False
+            for sel in reviews_tab_selectors:
+                try:
+                    tab = await page.wait_for_selector(sel, timeout=5000)
+                    if tab:
+                        await tab.click()
+                        print(f"[TAB] Reviews tab clicked: '{sel}'")
+                        await asyncio.sleep(3)
+                        tab_clicked = True
+                        break
+                except Exception:
+                    pass
+
+            if not tab_clicked:
+                print("[TAB] WARNING: Could not find a Reviews tab — proceeding anyway.")
+
+            # RESILIENCE #5: Gentle scroll to wake up lazy-loaded review cards.
             await page.mouse.wheel(0, 500)
-            await asyncio.sleep(1)
+            await asyncio.sleep(1.5)
 
-            # Now wait for the reviews section with the full timeout budget.
-            print("Waiting for review cards (div[data-review-id])...")
-            await page.wait_for_selector('div[data-review-id]', timeout=25000)
+            # Wait for the review cards with a generous budget.
+            print("[WAIT] Waiting for div[data-review-id]...")
+            await page.wait_for_selector("div[data-review-id]", timeout=30000)
+            print("[WAIT] Review cards detected.")
 
-            # Deeper scroll to load more reviews / avatars
-            for _ in range(3):
+            # Deep scroll to load more cards / avatar images.
+            for _ in range(4):
                 await page.mouse.wheel(0, 2000)
                 await asyncio.sleep(2)
 
-            review_elements = await page.query_selector_all('div[data-review-id]')
-            print(f"Found {len(review_elements)} potential reviews.")
-            
+            review_elements = await page.query_selector_all("div[data-review-id]")
+            print(f"[PARSE] Found {len(review_elements)} review cards.")
+
             for i, review_elem in enumerate(review_elements[:3]):
-                # Extract text
-                # Google often uses different classes, so we try a few common ones
-                text_elem = await review_elem.query_selector('.MyEned, span[jsaction*="full-review"]')
+                # --- Text ---
+                text_elem = await review_elem.query_selector(
+                    '.MyEned, span[jsaction*="full-review"], .wiI7pd'
+                )
                 text = await text_elem.inner_text() if text_elem else ""
 
-                # Extract rating
-                rating_elem = await review_elem.query_selector('[aria-label*="stars"]')
-                rating_label = await rating_elem.get_attribute('aria-label') if rating_elem else "0"
-                rating_match = re.search(r'(\d+)', rating_label)
+                # --- Rating ---
+                # aria-label can be "4 stars" or "4 estrellas"
+                rating_elem = await review_elem.query_selector(
+                    '[aria-label*="star"], [aria-label*="estrella"]'
+                )
+                rating_label = await rating_elem.get_attribute("aria-label") if rating_elem else "0"
+                rating_match = re.search(r"(\d+)", rating_label)
                 rating = int(rating_match.group(1)) if rating_match else 0
 
-                # Extract reviewer name
-                name_elem = await review_elem.query_selector('.d4r55') # Common name class
+                # --- Name ---
+                name_elem = await review_elem.query_selector(".d4r55, .NfpymFe")
                 name = await name_elem.inner_text() if name_elem else "Anonymous"
 
-                # Extract avatar URL - Prioritizing real images
-                # Look for img tags within the review element
+                # --- Avatar ---
                 avatar_img = await review_elem.query_selector('img[src*="googleusercontent.com"]')
-                avatar_url = await avatar_img.get_attribute('src') if avatar_img else ""
-                
-                # If we have a URL, let's try to get a higher resolution version if possible
+                avatar_url = await avatar_img.get_attribute("src") if avatar_img else ""
                 if avatar_url and "=s" in avatar_url:
-                    avatar_url = re.sub(r'=s\d+.*', '=s256-c', avatar_url)
+                    avatar_url = re.sub(r"=s\d+.*", "=s256-c", avatar_url)
 
                 reviews_data.append({
                     "reviewer_name": name,
                     "review_text": text,
                     "rating": rating,
-                    "avatar_url": avatar_url
+                    "avatar_url": avatar_url,
                 })
-                
+                print(f"[PARSE] Review {i+1}: {name} ({rating}★)")
+
         except Exception as e:
-            print(f"Scraping error: {e}")
+            print(f"[ERROR] Scraping failed: {e}")
+            # RESILIENCE #6: Save a screenshot for post-mortem debugging.
+            try:
+                os.makedirs(os.path.dirname(debug_screenshot_path), exist_ok=True)
+                await page.screenshot(path=debug_screenshot_path, full_page=False)
+                print(f"[DEBUG] Screenshot saved → {debug_screenshot_path}")
+            except Exception as ss_err:
+                print(f"[DEBUG] Could not save screenshot: {ss_err}")
         finally:
             await browser.close()
-            
+
     return reviews_data
 
 def download_avatar(avatar_url, business_id, review_index):
