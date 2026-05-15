@@ -1,0 +1,6 @@
+requests
+supabase
+python-dotenv
+ffmpeg-python
+beautifulsoup4
+playwright

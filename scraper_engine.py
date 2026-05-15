@@ -6,83 +6,94 @@ import asyncio
 import requests
 from playwright.async_api import async_playwright
 
-# Define the base temporary directory relative to the script\'s location
-BASE_TEMP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "temp", "leads")
+# BASE_DIR should be the directory where the script is located
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# The standard bridge for dumb modules: /app/temp/leads/{id}/
+# We use os.path.join to maintain compatibility, but targeting /app/temp/leads
+BASE_TEMP_DIR = os.path.join(BASE_DIR, "temp", "leads")
 
 def extract_business_id(url):
     """
     Extracts a unique business ID from the Google Maps URL.
-    For POC, we\'ll hash the URL. In a real scenario, this might parse a place ID.
+    Used to create the directory structure for the data bridge.
     """
-    return hashlib.md5(url.encode(\'utf-8\')).hexdigest()
+    return hashlib.md5(url.encode('utf-8')).hexdigest()
 
 async def scrape_reviews_with_playwright(url):
     """
-    Scrapes the top 3 reviews (text, rating, avatar URL) from a Google Maps URL using Playwright.
-    Focuses on waiting for dynamic content to load reliably.
+    DUMB SCRAPER: Focuses solely on materializing review data and avatar URLs.
+    Does not know about video rendering or cloud uploads.
     """
     reviews_data = []
     async with async_playwright() as p:
+        # Launching Chromium as pre-installed in the Docker container
         browser = await p.chromium.launch(headless=True)
-        page = await browser.new_page()
+        context = await browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        )
+        page = await context.new_page()
+        
         try:
-            await page.goto(url, wait_until=\'domcontentloaded\')
+            print(f"Navigating to: {url}")
+            await page.goto(url, wait_until='networkidle', timeout=60000)
 
-            # Give it some time for initial content to load
-            await page.wait_for_timeout(3000)
+            # Wait for the main reviews container to load
+            # This selector is common for the reviews tab or section
+            await page.wait_for_selector('div[data-review-id]', timeout=20000)
 
-            # Scroll the review section to load more reviews
-            # Identify the scrollable container for reviews. This selector is a common pattern for Google Maps review sections.
-            # It might need adjustment based on specific Google Maps UI variations.
-            scrollable_selector = 'div[aria-label*="Reviews for"]' 
-            
-            # Wait for the scrollable element to be present
-            await page.wait_for_selector(scrollable_selector, timeout=10000)
-
-            # Scroll multiple times to ensure enough reviews are loaded
-            for _ in range(5):
-                await page.evaluate(f"document.querySelector('{scrollable_selector}').scrollTop += 500;")
-                await page.wait_for_timeout(1000) # Give time for new content to load
-
-            # Wait for review elements to appear after scrolling
-            await page.wait_for_selector('div[data-review-id]', timeout=10000)
+            # Scroll to ensure images/reviews are loaded
+            for _ in range(3):
+                await page.mouse.wheel(0, 2000)
+                await asyncio.sleep(2)
 
             review_elements = await page.query_selector_all('div[data-review-id]')
+            print(f"Found {len(review_elements)} potential reviews.")
             
-            for i, review_elem in enumerate(review_elements[:3]): # Take top 3 reviews
-                review_text_element = await review_elem.query_selector('span[jsaction*="full-review"]')
-                if not review_text_element:
-                    # Fallback to a more general text selector if 'full-review' isn't present initially
-                    review_text_element = await review_elem.query_selector('span.MyEned') 
-                
-                review_text_content = await review_text_element.inner_text() if review_text_element else ''
+            for i, review_elem in enumerate(review_elements[:3]):
+                # Extract text
+                # Google often uses different classes, so we try a few common ones
+                text_elem = await review_elem.query_selector('.MyEned, span[jsaction*="full-review"]')
+                text = await text_elem.inner_text() if text_elem else ""
 
-                rating_element = await review_elem.query_selector('[aria-label*="stars"]')
-                rating_aria_label = await rating_element.get_attribute('aria-label') if rating_element else '0 stars'
-                rating_match = re.search(r'(\d+\.?\d*)', rating_aria_label)
-                rating = float(rating_match.group(1)) if rating_match else 0.0
+                # Extract rating
+                rating_elem = await review_elem.query_selector('[aria-label*="stars"]')
+                rating_label = await rating_elem.get_attribute('aria-label') if rating_elem else "0"
+                rating_match = re.search(r'(\d+)', rating_label)
+                rating = int(rating_match.group(1)) if rating_match else 0
 
-                # Avatar image selector. Google often uses data-url or src attributes.
-                avatar_img = await review_elem.query_selector('img[src*="googleusercontent.com"], img.WEBjEd') 
-                avatar_url = await avatar_img.get_attribute('src') if avatar_img else ''
+                # Extract reviewer name
+                name_elem = await review_elem.query_selector('.d4r55') # Common name class
+                name = await name_elem.inner_text() if name_elem else "Anonymous"
+
+                # Extract avatar URL - Prioritizing real images
+                # Look for img tags within the review element
+                avatar_img = await review_elem.query_selector('img[src*="googleusercontent.com"]')
+                avatar_url = await avatar_img.get_attribute('src') if avatar_img else ""
                 
+                # If we have a URL, let's try to get a higher resolution version if possible
+                if avatar_url and "=s" in avatar_url:
+                    avatar_url = re.sub(r'=s\d+.*', '=s256-c', avatar_url)
+
                 reviews_data.append({
-                    "text": review_text_content,
+                    "reviewer_name": name,
+                    "review_text": text,
                     "rating": rating,
                     "avatar_url": avatar_url
                 })
+                
         except Exception as e:
-            print(f"Playwright scraping error: {e}")
+            print(f"Scraping error: {e}")
         finally:
             await browser.close()
+            
     return reviews_data
 
 def download_avatar(avatar_url, business_id, review_index):
     """
-    Downloads an avatar image and saves it locally.
+    MATERIALIZER: Downloads the avatar to the local lead folder.
+    This ensures the Renderer doesn't need internet access.
     """
     if not avatar_url:
-        print(f"No avatar URL provided for review {review_index}.")
         return None
 
     lead_dir = os.path.join(BASE_TEMP_DIR, business_id)
@@ -91,29 +102,29 @@ def download_avatar(avatar_url, business_id, review_index):
     local_path = os.path.join(lead_dir, f"avatar_{review_index}.jpg")
     
     try:
-        # Playwright should give a direct image URL, so requests is fine here
-        response = requests.get(avatar_url, stream=True)
+        response = requests.get(avatar_url, stream=True, timeout=15)
         response.raise_for_status()
-        with open(local_path, \'wb\') as f:
+        with open(local_path, 'wb') as f:
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
         return local_path
-    except requests.exceptions.RequestException as e:
-        print(f"Error downloading avatar from {avatar_url}: {e}")
+    except Exception as e:
+        print(f"Error downloading avatar {review_index}: {e}")
         return None
 
 def save_metadata(business_id, reviews_data):
     """
-    Saves the scraped review data and local avatar paths to a metadata.json file.
+    THE BRIDGE: Generates the metadata.json contract.
     """
     lead_dir = os.path.join(BASE_TEMP_DIR, business_id)
     os.makedirs(lead_dir, exist_ok=True)
     
     metadata_path = os.path.join(lead_dir, "metadata.json")
     
-    with open(metadata_path, \'w\', encoding=\'utf-8\') as f:
+    with open(metadata_path, 'w', encoding='utf-8') as f:
         json.dump({
             "business_id": business_id,
+            "status": "ready_for_render",
             "reviews": reviews_data
         }, f, ensure_ascii=False, indent=4)
     
@@ -121,32 +132,40 @@ def save_metadata(business_id, reviews_data):
 
 async def test_single_url(url):
     """
-    Tests the scraping process for a single Google Maps URL using Playwright.
+    POC: Validates that the Scraper creates the local bridge folder correctly.
     """
-    print(f"Starting Playwright scraping process for URL: {url}")
-    try:
-        business_id = extract_business_id(url)
-        print(f"Extracted Business ID: {business_id}")
+    print(f"--- SCRAPER ENGINE START ---")
+    business_id = extract_business_id(url)
+    print(f"Lead ID: {business_id}")
 
-        reviews_data = await scrape_reviews_with_playwright(url)
-        print(f"Scraped {len(reviews_data)} reviews.")
+    # 1. Scrape
+    reviews_data = await scrape_reviews_with_playwright(url)
+    
+    if not reviews_data:
+        print("No reviews found. Stopping.")
+        return
 
-        for i, review in enumerate(reviews_data):
-            if review["avatar_url"]:
-                local_avatar_path = download_avatar(review["avatar_url"], business_id, i)
-                review["avatar_local_path"] = local_avatar_path
-            else:
-                review["avatar_local_path"] = None # No avatar downloaded
+    # 2. Materialize Assets
+    for i, review in enumerate(reviews_data):
+        print(f"Processing review {i+1}...")
+        local_path = download_avatar(review["avatar_url"], business_id, i)
+        review["avatar_local_path"] = local_path # The Renderer will use this field
 
-        metadata_path = save_metadata(business_id, reviews_data)
-        print(f"Metadata saved to: {metadata_path}")
-        print("Playwright scraping process completed successfully!")
-        return metadata_path
-    except Exception as e:
-        print(f"An error occurred during Playwright scraping: {e}")
-        return None
+    # 3. Create Bridge Contract
+    metadata_path = save_metadata(business_id, reviews_data)
+    
+    print(f"--- SUCCESS ---")
+    print(f"Folder Materialized: {os.path.join(BASE_TEMP_DIR, business_id)}")
+    print(f"Metadata Contract: {metadata_path}")
 
 if __name__ == "__main__":
-    # Example Usage: Replace with a real Google Maps URL for testing
-    example_url = "https://www.google.com/maps/place/The+British+Museum/@51.5194467,-0.1270026,17z/data=!4m8!1m2!2m1!1sBritish+Museum+reviews!3m4!1s0x48761b4742467d1b:0x5e0892040685601d!8m2!3d51.5194467!4d-0.1269986?hl=en"
-    asyncio.run(test_single_url(example_url))
+    import sys
+    example_url = "https://www.google.com/maps/place/Telocuido+Petsitter/data=!4m7!3m6!1s0x1032f756cfca1d7:0xe87b3212d778e2f4!8m2!3d-32.9979487!4d-71.4582527!16s%2Fg%2F11ts4gs3dr!19sChIJ16H8bHUvAwER9OJ41xIye-g?authuser=0&hl=es-419&rclk=1" # Updated URL
+    
+    # Default test URL if none provided
+    test_url = example_url # Initialize test_url with example_url
+
+    if len(sys.argv) > 1:
+        test_url = sys.argv[1]
+
+    asyncio.run(test_single_url(test_url))
