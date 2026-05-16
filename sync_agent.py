@@ -63,11 +63,13 @@ def handle_lead_rejection(supabase, lead_id, business_name, reason, error_msg):
     except Exception as e:
         print(f"[SUPABASE] X Failed to archive/delete lead {lead_id}: {e}")
 
-def run_pipeline(business_name: str, lead_id: str = None, supabase=None):
+def run_pipeline(query: str, lead_id: str = None, supabase=None, business_name: str = None):
     """
     Executes the full pipeline: Places API -> Core Render.
-    Measures execution time and handles errors.
+    query: Maps URL or business name used for scraping.
+    business_name: Human-readable name for logs/DB (defaults to query).
     """
+    business_name = business_name or query
     print(f"\n{'='*50}")
     print(f"STARTING Pipeline for: '{business_name}'")
     print(f"{'='*50}")
@@ -79,7 +81,7 @@ def run_pipeline(business_name: str, lead_id: str = None, supabase=None):
     try:
         print(f"\n[ORCHESTRATOR] Running places_api.py...")
         result = subprocess.run(
-            ["python", "places_api.py", business_name],
+            ["python", "places_api.py", query],
             capture_output=True, text=True, check=True
         )
         print(result.stdout)
@@ -166,10 +168,11 @@ def daemon_mode():
             
             for row in rows:
                 lead_id = row["id"]
-                # Fallback to a default name if not provided
-                business_name = row.get("business_name") or row.get("query") or "Telocuido Petsitter Quilpué Chile"
+                business_name = row.get("business_name") or "Unknown"
+                # Use maps_url (has Place ID) for reliable lookup; fallback to name
+                query = row.get("maps_url") or business_name
                 
-                run_pipeline(business_name, lead_id, supabase)
+                run_pipeline(query, lead_id, supabase, business_name=business_name)
 
         except Exception as e:
             print(f"[DAEMON] Polling error: {e}")
@@ -181,6 +184,6 @@ if __name__ == "__main__":
             print("Usage: python sync_agent.py --test \"Nombre del Local\"")
             sys.exit(1)
         business_name = sys.argv[2]
-        run_pipeline(business_name)
+        run_pipeline(business_name, business_name=business_name)
     else:
         daemon_mode()
