@@ -1,5 +1,5 @@
 import React from 'react';
-import { AbsoluteFill, Img, Sequence, useCurrentFrame, useVideoConfig, spring, interpolate } from 'remotion';
+import { AbsoluteFill, Img, Sequence, useCurrentFrame, useVideoConfig, spring, interpolate, Audio, staticFile } from 'remotion';
 import { z } from 'zod';
 import './index.css'; // Make sure Tailwind is loaded
 
@@ -140,6 +140,9 @@ export const SocialProofReel: React.FC<SocialProofProps> = (props) => {
 
   return (
     <AbsoluteFill className="bg-[#0F0F1A]">
+      {/* Audio de fondo */}
+      <Audio src={staticFile("audio.mp3")} volume={0.5} />
+
       {/* Background with blur and darkening */}
       <AbsoluteFill>
         {bgImage ? (
