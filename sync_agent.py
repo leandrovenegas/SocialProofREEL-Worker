@@ -60,6 +60,7 @@ def handle_lead_rejection(supabase, lead_id, business_name, reason, error_msg):
         # 2. Delete from video_queue
         supabase.table("video_queue").delete().eq("id", lead_id).execute()
         print(f"[ARCHIVE] Lead {lead_id} ({business_name}) moved to 'lead_rejections'.")
+    except Exception as e:
         print(f"[SUPABASE] X Failed to archive/delete lead {lead_id}: {e}")
 
 def run_pipeline(business_name: str, lead_id: str = None, supabase=None):

@@ -14,11 +14,17 @@
 4. Upload to Bunny.net and update Supabase status[cite: 1].
 
 ## EXECUTION ENVIRONMENT (DOCKER)
-- **Host OS:** Ubuntu 26.04 (Development only).
-- **Runtime:** Docker Container `socialproof-worker`.
+- **This editor (VS Code):** Code editing ONLY. Never run commands here.
+- **Deployment Server:** `192.168.1.22` (Linux). All code runs here.
+- **Runtime:** Docker container `socialproof-worker`.
 - **Image Base:** `playwright/python:v1.45.0-jammy` (Ubuntu 24.04).
-- **Volume Mapping:** Local project folder mapped to `/app` inside the container.
-- **CLI Task:** The agent must only write code and provide the Docker command for execution. Do NOT attempt to run scripts or install packages on the host.
+- **Volume Mapping:** Project folder mapped to `/app` inside the container.
+- **Rule:** Always provide Docker commands for the user to run on the server. Never attempt to execute scripts locally.
+- **Run command pattern:**
+  ```bash
+  docker build -t socialproof-worker .
+  docker run --rm --env-file .env socialproof-worker python <script.py> [args]
+  ```
 
 ## FILOSOFÍA DE DESARROLLO (MODULARIZACIÓN CRÍTICA)
 1. **Aislamiento Total:** Cada script (`scraper_engine.py`, `core_render.py`, `uploader.py`) debe ser "tonto" respecto al resto. 
