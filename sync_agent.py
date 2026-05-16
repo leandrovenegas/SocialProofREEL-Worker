@@ -104,9 +104,9 @@ def run_pipeline(query: str, lead_id: str = None, supabase=None, business_name: 
 
     # Step 2: Core Render
     try:
-        print(f"\n[ORCHESTRATOR] Running core_render.py...")
+        print(f"\n[ORCHESTRATOR] Running render_remotion.py...")
         result = subprocess.run(
-            ["python", "core_render.py", business_name],
+            ["python", "render_remotion.py", business_name],
             capture_output=True, text=True, check=True
         )
         print(result.stdout)

@@ -7,8 +7,11 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-# Instalamos FFmpeg y utilidades de fuentes básicas
-RUN apt-get update && apt-get install -y \
+# Instalamos FFmpeg, utilidades de fuentes, y Node.js 20
+RUN apt-get update && apt-get install -y curl && \
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y \
+    nodejs \
     ffmpeg \
     fontconfig \
     && rm -rf /var/lib/apt/lists/*
