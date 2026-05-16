@@ -30,7 +30,9 @@ const ReviewSlide: React.FC<{
   review: z.infer<typeof reviewSchema>;
   business_name: string;
   overall_rating: number;
-}> = ({ review, business_name, overall_rating }) => {
+  business_id: string;
+  index: number;
+}> = ({ review, business_name, overall_rating, business_id, index }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
@@ -44,10 +46,9 @@ const ReviewSlide: React.FC<{
   const translateY = interpolate(entranceProgress, [0, 1], [100, 0]);
   const opacity = interpolate(entranceProgress, [0, 1], [0, 1]);
 
-  // Try to use the avatar URL for remote testing, fallback to local path (for Docker)
-  // In Remotion Studio locally, local absolute docker paths like /app/... will fail unless rewritten, 
-  // but avatar_url will work beautifully.
-  const avatarSrc = review.avatar_url || review.avatar_local_path;
+  // Read the local file that was copied to public/leads/{id}/ by the orchestrator
+  // By using staticFile, Remotion serves it via its local HTTP server, avoiding the file:// security block
+  const avatarSrc = staticFile(`leads/${business_id}/avatar_${index}.jpg`);
 
   // Generate 5 stars
   const stars = Array.from({ length: 5 }).map((_, i) => (
@@ -131,12 +132,8 @@ export const SocialProofReel: React.FC<SocialProofProps> = (props) => {
   // Each review gets 6 seconds
   const slideDurationFrames = 6 * fps;
   
-  // The background path might be a Docker path /app/... which won't load in Windows Studio.
-  // We can use a local path rewrite trick for dev, or just let it fail gracefully to the dark color.
-  // For production in Docker, it will work if we use file:// protocol.
-  const bgImage = props.background_local_path 
-    ? `file://${props.background_local_path}`
-    : undefined;
+  // Same for background, use staticFile and the public copied image
+  const bgImage = staticFile(`leads/${props.business_id}/background.jpg`);
 
   return (
     <AbsoluteFill className="bg-[#0F0F1A]">
@@ -166,6 +163,8 @@ export const SocialProofReel: React.FC<SocialProofProps> = (props) => {
             review={review} 
             business_name={props.business_name} 
             overall_rating={props.overall_rating} 
+            business_id={props.business_id}
+            index={index}
           />
         </Sequence>
       ))}

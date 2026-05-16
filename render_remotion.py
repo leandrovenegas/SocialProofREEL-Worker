@@ -12,6 +12,7 @@ import sys
 import json
 import hashlib
 import subprocess
+import shutil
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -44,9 +45,18 @@ def render_lead_with_remotion(lead_dir: str) -> str | None:
             break
         version += 1
 
-    # In the future, we will fetch 'settings' from Supabase here 
-    # and merge it with metadata into a single props JSON file if needed.
-    # For now, we pass metadata_path directly.
+    # To bypass Remotion's file:// security and Google's 429 rate limit, 
+    # we copy the images to the public folder so they are served statically.
+    business_id = os.path.basename(os.path.normpath(lead_dir))
+    public_leads_dir = os.path.join(REMOTION_DIR, "public", "leads", business_id)
+    os.makedirs(public_leads_dir, exist_ok=True)
+    
+    # Copy background and avatars
+    if os.path.exists(os.path.join(lead_dir, "background.jpg")):
+        shutil.copy(os.path.join(lead_dir, "background.jpg"), public_leads_dir)
+    for i in range(5):
+        if os.path.exists(os.path.join(lead_dir, f"avatar_{i}.jpg")):
+            shutil.copy(os.path.join(lead_dir, f"avatar_{i}.jpg"), public_leads_dir)
     
     cmd = [
         "npx", "remotion", "render",
