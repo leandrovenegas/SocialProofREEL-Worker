@@ -1,0 +1,32 @@
+{
+    "business_id": "4a13111928259a1986ab7058a5937a31",
+    "business_name": "RVAutomotriz VIÑA DEL MAR",
+    "overall_rating": 4.6,
+    "address": "Av. Valparaíso 1338, 2340000 Viña del Mar, Valparaíso, Chile",
+    "place_id": "ChIJz09PUtbhiZYRxmMulJwGfFs",
+    "status": "ready_for_render",
+    "background_local_path": "/app/videos_locales/4a13111928259a1986ab7058a5937a31/background.jpg",
+    "reviews": [
+        {
+            "reviewer_name": "Fernanda Valdés",
+            "review_text": "100% recomendado, excelente atención. Llegué por un choque que dejó los airbags reventados y los cinturones del conductor y copiloto bloqueados. Pregunté en muchos talleres antes de llegar con don Roberto, quien desde el minuto uno tuvo la mejor disposición a solucionar el problema. Él se encargó de cotizar y comprar los repuestos y me mantuvo al tanto de lo que pasaba durante todo el proceso del arreglo. Se demoró una semana justa en tenerlo listo, y dejó el auto impecable. Muy amable, con mucha paciencia para explicar, súper rápido, eficiente y 100% confiable. Nuevamente muchas gracias!",
+            "rating": 5,
+            "avatar_url": "https://lh3.googleusercontent.com/a/ACg8ocIhg5YJ-eczQIsT3mBkTNwPvjwiHnaHuVyv5LDIpjeReMEYzA=s128-c0x00000000-cc-rp-mo",
+            "avatar_local_path": "/app/videos_locales/4a13111928259a1986ab7058a5937a31/avatar_0.jpg"
+        },
+        {
+            "reviewer_name": "Karina Rozas",
+            "review_text": "Llegue un poco desconfianza ya que venía de 2 mecánicos anteriores que no supieron solucionarme el problema de mi aire acondicionado (puro gasto de plata). El dueño me explico todo con detalles y fue  honesto respecto al posible resultado,  me mantuvo al tanto del estado de mi vehículo en el proceso y finalmente quedó impecable mi A/C....\nMuy empático con mi situación y a la vez directo, quede muy satisfecha del resultado, MIL RECOMENDADO , pague feliz !! Además te da garantía.... muchas gracias nuevamente.",
+            "rating": 5,
+            "avatar_url": "https://lh3.googleusercontent.com/a/ACg8ocKVEAR9qHrqdYsA1jdJHc5686rCfIjse6JU_qWJ8v8Rl6zbTk-j=s128-c0x00000000-cc-rp-mo",
+            "avatar_local_path": "/app/videos_locales/4a13111928259a1986ab7058a5937a31/avatar_1.jpg"
+        },
+        {
+            "reviewer_name": "Valeria García",
+            "review_text": "Desde Santiago a viña una aventura que no podré olvidar! Y mil agradecida con la atención, la eficiencia, la dedicación y el compromiso ! Me solucionaron un problemón! El mismo día gracias a su ayuda y asesoramiento pude llegar a Santiago con auto y todo ! 100% recomendable y gracias por la atención y la empatía ! Mis felicitaciones para este taller así que recomiendo a ojos cerrado para poder resolver cualquier duda ya que siempre te darán la mejor resolución!",
+            "rating": 5,
+            "avatar_url": "https://lh3.googleusercontent.com/a/ACg8ocLtfj7cJ7CjCVxmw82-Yr51-LVRHmpkUA41EeM3mC_tFsO0Gw=s128-c0x00000000-cc-rp-mo",
+            "avatar_local_path": "/app/videos_locales/4a13111928259a1986ab7058a5937a31/avatar_2.jpg"
+        }
+    ]
+}

@@ -1,0 +1,32 @@
+{
+    "business_id": "d4d45c4078a98299a673afb502be249c",
+    "business_name": "Kome y Kaya",
+    "overall_rating": 4.4,
+    "address": "Av. Concón Reñaca 125, 2510092 Concón, Valparaíso, Chile",
+    "place_id": "ChIJu8SJo9LCiZYRZV4cbGP9HsY",
+    "status": "ready_for_render",
+    "background_local_path": "/app/videos_locales/d4d45c4078a98299a673afb502be249c/background.jpg",
+    "reviews": [
+        {
+            "reviewer_name": "Nini ñam",
+            "review_text": "Demasiado entretenido y choro el lugar. La decoración te transporta a otro lugar. Fui a comer con mi familia y disfrutamos todos de unos buenos As. Buena atención al cliente. No había tanta gente durante el almuerzo y eso q es jueves. Ñam ñam",
+            "rating": 5,
+            "avatar_url": "https://lh3.googleusercontent.com/a-/ALV-UjXHWXBRJDhYvN4pV3mQgMmRxl-rCeSY7inN6220lqcaXT3TlGc=s128-c0x00000000-cc-rp-mo-ba3",
+            "avatar_local_path": "/app/videos_locales/d4d45c4078a98299a673afb502be249c/avatar_0.jpg"
+        },
+        {
+            "reviewer_name": "Snow Fox",
+            "review_text": "Vine a comer con mi padre y mi primo, pedimos un hamburguesa americana, una hamburguesa tejana y un burrito. Ninguna queja! Nos atendieron con mucho cariño y todo con un aire bastante relajado. (Lo que si es cierto, importante para los que les moleste, es que nosotros nos pillamos nuestra propia mesa, quienes nos atendieron no nos guiaron a alguna mesa específica, pero personalmente lo prefiero así)\n\nEfectivamente nos callamos y comimos, desde que empecé a masticar solo abrí mi hocico para decir que habia terminado.",
+            "rating": 5,
+            "avatar_url": "https://lh3.googleusercontent.com/a-/ALV-UjV9xcJrG9X_xLToEBzE0-AxZtrX0Q7fTtlZlGt-WkCQA7RvVpE=s128-c0x00000000-cc-rp-mo",
+            "avatar_local_path": "/app/videos_locales/d4d45c4078a98299a673afb502be249c/avatar_1.jpg"
+        },
+        {
+            "reviewer_name": "juan mejia",
+            "review_text": "Me pareció un buen lugar. Un poco ruidoso pero es normal en un lugar con gente comiendo y compartiendo. Atienen bien y se ve cómo un lugar limpio y con buena atención. La promo que comi estaba buena por el precio.",
+            "rating": 4,
+            "avatar_url": "https://lh3.googleusercontent.com/a-/ALV-UjXlkhX5BHP1-oTNTTsbIbJZuC39ciSy-8pd1w7UpkoPwKeWsecg=s128-c0x00000000-cc-rp-mo-ba4",
+            "avatar_local_path": "/app/videos_locales/d4d45c4078a98299a673afb502be249c/avatar_2.jpg"
+        }
+    ]
+}

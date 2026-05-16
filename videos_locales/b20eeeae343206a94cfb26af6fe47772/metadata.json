@@ -1,0 +1,32 @@
+{
+    "business_id": "b20eeeae343206a94cfb26af6fe47772",
+    "business_name": "Big Negro Marketing / Agencia de Marketing Digital en Chile",
+    "overall_rating": 4.7,
+    "address": "Capitán Avalos 513d, 8780000 La Granja, Región Metropolitana, Chile",
+    "place_id": "ChIJi_BWvf3kMSARIZ362agXyIo",
+    "status": "ready_for_render",
+    "background_local_path": "/app/videos_locales/b20eeeae343206a94cfb26af6fe47772/background.jpg",
+    "reviews": [
+        {
+            "reviewer_name": "Envios Click",
+            "review_text": "Excelente servicio y hoy en día vamos escalando en las Redes Sociales. Muchas Gracias 💪",
+            "rating": 5,
+            "avatar_url": "https://lh3.googleusercontent.com/a/ACg8ocLWlKuSkcPNCCpgZLLI5O7Dk0CDwoO6GU4Gn9Z1L02oJpkhyw=s128-c0x00000000-cc-rp-mo",
+            "avatar_local_path": "/app/videos_locales/b20eeeae343206a94cfb26af6fe47772/avatar_0.jpg"
+        },
+        {
+            "reviewer_name": "Diocelys Hernandez",
+            "review_text": "Me encanta trabajar con Big Negro Marketing es realmente responsable en lo que promete 100% recomendado 👌🏼 👍🏼",
+            "rating": 5,
+            "avatar_url": "https://lh3.googleusercontent.com/a/ACg8ocKYO6iz-gH0HwbdeHCbmJgtGNvl6HZBSlx4402lyNDEZx3N0Q=s128-c0x00000000-cc-rp-mo",
+            "avatar_local_path": "/app/videos_locales/b20eeeae343206a94cfb26af6fe47772/avatar_1.jpg"
+        },
+        {
+            "reviewer_name": "patricia caicedo",
+            "review_text": "Me fue super bien muy bien explicado y tiene muchas formas de ayudar al crecimiento de los emprendemientos",
+            "rating": 5,
+            "avatar_url": "https://lh3.googleusercontent.com/a-/ALV-UjVazgjb64zT_Gu4VOxuDYS7vlEqD-utOdJikmYIaF9MvCK6t3Pmkg=s128-c0x00000000-cc-rp-mo",
+            "avatar_local_path": "/app/videos_locales/b20eeeae343206a94cfb26af6fe47772/avatar_2.jpg"
+        }
+    ]
+}

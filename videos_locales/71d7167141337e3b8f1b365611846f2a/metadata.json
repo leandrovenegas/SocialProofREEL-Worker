@@ -1,0 +1,32 @@
+{
+    "business_id": "71d7167141337e3b8f1b365611846f2a",
+    "business_name": "Lopez Motos",
+    "overall_rating": 3.8,
+    "address": "Juana Ross 192, 2340000 Valparaíso, Chile",
+    "place_id": "ChIJXTr5DsPgiZYR0Oj4teC0Vjc",
+    "status": "ready_for_render",
+    "background_local_path": "/app/videos_locales/71d7167141337e3b8f1b365611846f2a/background.jpg",
+    "reviews": [
+        {
+            "reviewer_name": "sebastian loncon",
+            "review_text": "Muy buen mecánico y una excelente atención  nada se le queda chico y el mecanico q tiene atiende excelente y rápido  100% recomendado",
+            "rating": 5,
+            "avatar_url": "https://lh3.googleusercontent.com/a/ACg8ocLuQ90vJ9FnuU49dgkWkKiKs2FVZKIRV6xsyazDb-zhf5OXDw=s128-c0x00000000-cc-rp-mo",
+            "avatar_local_path": "/app/videos_locales/71d7167141337e3b8f1b365611846f2a/avatar_0.jpg"
+        },
+        {
+            "reviewer_name": "Yasna Cavieres",
+            "review_text": "Excelente servicio, muy buena disposición para atender y explicar todas las consultas.\nTrato amable y muy profesional. Llevé mi scooter Honda porque no partía y llevaba mucho tiempo estacionada sin uso. Le hizo carga de batería e inspección general para ver si necesitaba alguna reparación o mantenimiento especial adicional. Solo requirió ajuste de freno trasero. Fue muy amable de darme algunas indicaciones para evitar futuros problemas de batería y de mantenimiento en general, además de asesorarme en la valorización de la moto para su venta.",
+            "rating": 5,
+            "avatar_url": "https://lh3.googleusercontent.com/a-/ALV-UjXHVbjPbdxIYvwmBYDFIbQ09TK9-BOJ-8fecx-uHBVzmfudJuCIdQ=s128-c0x00000000-cc-rp-mo",
+            "avatar_local_path": "/app/videos_locales/71d7167141337e3b8f1b365611846f2a/avatar_1.jpg"
+        },
+        {
+            "reviewer_name": "Alexander Fernandez Zuniga",
+            "review_text": "Lleve mi moto una Benelli leoncino 500 con poco kilometraje, no obstante presento inconvenientes con la caja de cambios, como local atendido por su dueño y toda su experiencia dio con la solución en menos de lo pensado y ya estaba rodando nuevamente feliz. Muy buena atención y precios , desde entonces llevo mi moto para cualquier mantencion (frenos, cambio aceite, etc) o inquietud técnica.",
+            "rating": 5,
+            "avatar_url": "https://lh3.googleusercontent.com/a-/ALV-UjVI2u23fYPvFQTuy4fZTkhb2IgVrvCTme666lxfuO1nB0cQ2092=s128-c0x00000000-cc-rp-mo",
+            "avatar_local_path": "/app/videos_locales/71d7167141337e3b8f1b365611846f2a/avatar_2.jpg"
+        }
+    ]
+}

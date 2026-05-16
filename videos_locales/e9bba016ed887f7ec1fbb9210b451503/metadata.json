@@ -1,0 +1,32 @@
+{
+    "business_id": "e9bba016ed887f7ec1fbb9210b451503",
+    "business_name": "Clínica Veterinaria Pet House",
+    "overall_rating": 4.3,
+    "address": "Av. Concón Reñaca 95, 2510121 Concón, Valparaíso, Chile",
+    "place_id": "ChIJ933dptLCiZYR0MhOvEQl8eA",
+    "status": "ready_for_render",
+    "background_local_path": "/app/videos_locales/e9bba016ed887f7ec1fbb9210b451503/background.jpg",
+    "reviews": [
+        {
+            "reviewer_name": "Gloria Meza",
+            "review_text": "Excelente atención hacia las mascotas y obvio a nosotros cómo tutor ó dueño. Recomendable 100%  esta clínica. Gracias por solucionar mi problema perruno a la brevedad.",
+            "rating": 5,
+            "avatar_url": "https://lh3.googleusercontent.com/a-/ALV-UjUQG6GmQmvfctVhOXOMJ91w6vMb1UmRpbSQdWzVfGSSP5SJgPif4g=s128-c0x00000000-cc-rp-mo-ba4",
+            "avatar_local_path": "/app/videos_locales/e9bba016ed887f7ec1fbb9210b451503/avatar_0.jpg"
+        },
+        {
+            "reviewer_name": "Gabbo arias",
+            "review_text": "Si no tienes el dinero que te exigen te dormirán tu mascota y te la entregarán muerta se Dieron la libertad de tomar fotocopia del carnet por ambos lados a modo de amenaza para que se les cancelen los 100mil extras que pedían por dejar morir a mí pobre perra  y si no fuera suficiente el personal se cubren entre ellas para tapar sus errores y no dudan en chispear los dedos y hablar como en la población, les pido no ir a este lugar mi perra estaba sobre su excremento y vómito y solo exigen pagar las 80 mil cada 2 días al intentar pagar en cuotas la durmieron inventando que estaba mal tengo videos y fotos de todo  esto no sé quedará así asesinos",
+            "rating": 1,
+            "avatar_url": "https://lh3.googleusercontent.com/a-/ALV-UjV7B4qJkNoU0J2sfgzIyS2zUreYS67xi9ccUyY-gXynwgEhgBxv=s128-c0x00000000-cc-rp-mo",
+            "avatar_local_path": "/app/videos_locales/e9bba016ed887f7ec1fbb9210b451503/avatar_1.jpg"
+        },
+        {
+            "reviewer_name": "M RH",
+            "review_text": "Nosotros llevamos nuestra gatita con cáncer. El doctor apenas la miró, pero habló de una operación con costo de $ 2.000.000. En las condiciones que estaba la gatita de 17 años no habría soportado la operación que propuso. 0 empatía. Nunca más Pet House",
+            "rating": 1,
+            "avatar_url": "https://lh3.googleusercontent.com/a-/ALV-UjXkrDGhe9mbB33r3iy_Ma3Ma9oiYtb5e-hX4B-T667lgIyhv-43=s128-c0x00000000-cc-rp-mo",
+            "avatar_local_path": "/app/videos_locales/e9bba016ed887f7ec1fbb9210b451503/avatar_2.jpg"
+        }
+    ]
+}

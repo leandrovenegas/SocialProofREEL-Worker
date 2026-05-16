@@ -1,0 +1,32 @@
+{
+    "business_id": "29379054510e70b7c79f63dd91c7c49a",
+    "business_name": "SIMONA Espacios Chacras",
+    "overall_rating": 4.5,
+    "address": "Mitre 1538, Chacras de Coria, Mitre 1538, M5505 Luján de Cuyo, Mendoza, Argentina",
+    "place_id": "ChIJP1kDcq2OsQER0y7N8GlJke8",
+    "status": "ready_for_render",
+    "background_local_path": "/app/videos_locales/29379054510e70b7c79f63dd91c7c49a/background.jpg",
+    "reviews": [
+        {
+            "reviewer_name": "Fernanda Lucero",
+            "review_text": "Fui al espacio por una gift card que me regaloron ,tuve una excelente experiencia en el espacio! Comencé con una Facial completo ,luego fui por uñas y finalice en la Pelu, con Nacho que fue excelente, me explicó, me sugirió y me dejó el pelo divino! Excelente espacio para absolumante todo ! 😊🥰 GRACIAS FAMILIAS DE 1°D por este hermoso regalo!💕",
+            "rating": 5,
+            "avatar_url": "https://lh3.googleusercontent.com/a-/ALV-UjVJ4oqs8boOpzAQMUs_QFW5X8i-UBIUXo3co8dIahP1vEELCN4erQ=s128-c0x00000000-cc-rp-mo",
+            "avatar_local_path": "/app/videos_locales/29379054510e70b7c79f63dd91c7c49a/avatar_0.jpg"
+        },
+        {
+            "reviewer_name": "gabriela fava",
+            "review_text": "Es un espacio hermoso, el servicio y los productos que usan son excelentes y el trato como cliente es excepcional. Realmente vale la pena, hacía tiempo no me sentía tan bien tratada como cliente. Recomendadísimo! Muchas gracias por tan buena atención 👏",
+            "rating": 5,
+            "avatar_url": "https://lh3.googleusercontent.com/a/ACg8ocIU_mZ3bSi48Sfmf_RMvbWPaB0ZIw5EEmYxw34lng-m7mu4Dw=s128-c0x00000000-cc-rp-mo",
+            "avatar_local_path": "/app/videos_locales/29379054510e70b7c79f63dd91c7c49a/avatar_1.jpg"
+        },
+        {
+            "reviewer_name": "Melisa Ianotti",
+            "review_text": "Me atendió Nacho en la peluquería y no solo el trato fue excelente sino que me encantó mi corte de pelo (que es algo que nunca pasa). Pienso volver siempre 🙏🏻",
+            "rating": 5,
+            "avatar_url": "https://lh3.googleusercontent.com/a-/ALV-UjUmRYDUuARDoS2hjdiYlm1Eef_wfFGt-pTwiY455VtzUSP-u0LT=s128-c0x00000000-cc-rp-mo-ba2",
+            "avatar_local_path": "/app/videos_locales/29379054510e70b7c79f63dd91c7c49a/avatar_2.jpg"
+        }
+    ]
+}

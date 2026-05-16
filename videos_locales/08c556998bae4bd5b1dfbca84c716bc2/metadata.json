@@ -1,0 +1,32 @@
+{
+    "business_id": "08c556998bae4bd5b1dfbca84c716bc2",
+    "business_name": "Domestic Life / Electricista en Santiago de Chile",
+    "overall_rating": 5,
+    "address": "Capitán Avalos 513d, 8320000 La Granja, Región Metropolitana, Chile",
+    "place_id": "ChIJLxVIfT1q4AgRmrKyJ_ME5qk",
+    "status": "ready_for_render",
+    "background_local_path": "/app/videos_locales/08c556998bae4bd5b1dfbca84c716bc2/background.jpg",
+    "reviews": [
+        {
+            "reviewer_name": "Carlos Barría",
+            "review_text": "Llego una hora después que lo contacté listo para trabajar, Excelente trabajo, quedamos coordinamos para hacer algunos otros arreglos, recomiendo 100%",
+            "rating": 5,
+            "avatar_url": "https://lh3.googleusercontent.com/a-/ALV-UjURw3aSfoLplH83c47z1FoZgD9eB8I65BxH1lIVwo81T8A_HvzfIQ=s128-c0x00000000-cc-rp-mo",
+            "avatar_local_path": "/app/videos_locales/08c556998bae4bd5b1dfbca84c716bc2/avatar_0.jpg"
+        },
+        {
+            "reviewer_name": "Orlando Opazo",
+            "review_text": "1000% recomendado, excelente relación precio/trabajo.\nConoce mucho de instalaciones electricas.",
+            "rating": 5,
+            "avatar_url": "https://lh3.googleusercontent.com/a/ACg8ocKRVvsjFJ5ZMRUkLv9c0Vm0EmbVMiv3x26-yeVaIME9ulkqeQ=s128-c0x00000000-cc-rp-mo-ba2",
+            "avatar_local_path": "/app/videos_locales/08c556998bae4bd5b1dfbca84c716bc2/avatar_1.jpg"
+        },
+        {
+            "reviewer_name": "true erudito",
+            "review_text": "Excelente trabajo muy profesional\nCosto ideal",
+            "rating": 5,
+            "avatar_url": "https://lh3.googleusercontent.com/a-/ALV-UjVQUiELL_dKNNas0Xl5q2uxfdWn8n5V7Swjh2VYGsPz0uuO-ttN=s128-c0x00000000-cc-rp-mo",
+            "avatar_local_path": "/app/videos_locales/08c556998bae4bd5b1dfbca84c716bc2/avatar_2.jpg"
+        }
+    ]
+}
