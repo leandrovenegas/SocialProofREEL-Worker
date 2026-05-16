@@ -37,7 +37,30 @@ def update_supabase_status(supabase, lead_id: str, status: str, error_message: s
         supabase.table("video_queue").update(payload).eq("id", lead_id).execute()
         print(f"[SUPABASE] Updated {lead_id} -> {status}")
     except Exception as e:
-        print(f"[SUPABASE] ✗ Failed to update status for {lead_id}: {e}")
+        print(f"[SUPABASE] X Failed to update status for {lead_id}: {e}")
+
+def handle_lead_rejection(supabase, lead_id, business_name, reason, error_msg):
+    """
+    DLQ Pattern: Archives a lead that cannot be processed into 'lead_rejections' 
+    and removes it from 'video_queue' to keep the queue clean.
+    """
+    if not supabase or not lead_id:
+        return
+    print(f"[ORCHESTRATOR] [REJECTION] Rejecting lead: {reason}")
+    
+    try:
+        # 1. Archive to lead_rejections
+        supabase.table("lead_rejections").insert({
+            "original_lead_id": lead_id,
+            "business_name": business_name,
+            "reason_code": reason,
+            "error_message": error_msg
+        }).execute()
+        
+        # 2. Delete from video_queue
+        supabase.table("video_queue").delete().eq("id", lead_id).execute()
+        print(f"[ARCHIVE] Lead {lead_id} ({business_name}) moved to 'lead_rejections'.")
+        print(f"[SUPABASE] X Failed to archive/delete lead {lead_id}: {e}")
 
 def run_pipeline(business_name: str, lead_id: str = None, supabase=None):
     """
@@ -45,7 +68,7 @@ def run_pipeline(business_name: str, lead_id: str = None, supabase=None):
     Measures execution time and handles errors.
     """
     print(f"\n{'='*50}")
-    print(f"🚀 Starting Pipeline for: '{business_name}'")
+    print(f"STARTING Pipeline for: '{business_name}'")
     print(f"{'='*50}")
 
     start_time = time.time()
@@ -61,8 +84,17 @@ def run_pipeline(business_name: str, lead_id: str = None, supabase=None):
         print(result.stdout)
     except subprocess.CalledProcessError as e:
         err_msg = f"Places API failed:\nSTDOUT: {e.stdout}\nSTDERR: {e.stderr}"
-        print(f"[ORCHESTRATOR] ✗ {err_msg}")
-        update_supabase_status(supabase, lead_id, "failed", error_message=err_msg)
+        print(f"[ORCHESTRATOR] X {err_msg}")
+        
+        # Detect specific rejection reasons
+        if "[ERROR] No reviews returned" in e.stdout:
+            handle_lead_rejection(supabase, lead_id, business_name, "no_reviews", err_msg)
+        elif "ZERO_RESULTS" in e.stdout:
+            handle_lead_rejection(supabase, lead_id, business_name, "not_found", err_msg)
+        else:
+            # Generic technical failure
+            update_supabase_status(supabase, lead_id, "failed", error_message=err_msg)
+            
         return False
 
     update_supabase_status(supabase, lead_id, "rendering")
@@ -85,14 +117,14 @@ def run_pipeline(business_name: str, lead_id: str = None, supabase=None):
 
     except subprocess.CalledProcessError as e:
         err_msg = f"Core Render failed:\nSTDOUT: {e.stdout}\nSTDERR: {e.stderr}"
-        print(f"[ORCHESTRATOR] ✗ {err_msg}")
+        print(f"[ORCHESTRATOR] X {err_msg}")
         update_supabase_status(supabase, lead_id, "failed", error_message=err_msg)
         return False
 
     # Success
     end_time = time.time()
     exec_time = round(end_time - start_time, 2)
-    print(f"\n[ORCHESTRATOR] ✓ Pipeline completed in {exec_time}s")
+    print(f"\n[ORCHESTRATOR] Pipeline completed in {exec_time}s")
     
     update_supabase_status(
         supabase, 

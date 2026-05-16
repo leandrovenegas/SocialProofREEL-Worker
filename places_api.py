@@ -112,7 +112,7 @@ def find_place(query_or_url: str, api_key: str) -> dict:
 
     result = data["results"][0]
     place_id = result["place_id"]
-    print(f"[FIND] ✓ Found: '{result['name']}' | Place ID: {place_id}")
+    print(f"[FIND] [OK] Found: '{result['name']}' | Place ID: {place_id}")
     return {
         "place_id": place_id,
         "name":     result.get("name", ""),
@@ -160,21 +160,28 @@ def get_reviews(place_id: str, api_key: str, max_reviews: int = 3) -> tuple[list
     if not result:
         return [], []
 
-    raw = result.get("reviews", [])
+    raw_reviews = result.get("reviews", [])
     # Sort reviews prioritizing higher ratings (5 stars first)
-    raw.sort(key=lambda x: x.get("rating", 0), reverse=True)
+    raw_reviews.sort(key=lambda x: x.get("rating", 0), reverse=True)
     
-    print(f"[REVIEWS] API returned {len(raw)} reviews. Using top {min(len(raw), max_reviews)}.")
-
     reviews = []
-    for r in raw[:max_reviews]:
+    for r in raw_reviews:
+        text = r.get("text", "").strip()
+        if not text:
+            continue
+            
         reviews.append({
             "reviewer_name": r.get("author_name", "Anonymous"),
-            "review_text":   r.get("text", ""),
+            "review_text":   text,
             "rating":        r.get("rating", 0),
             "avatar_url":    r.get("profile_photo_url", ""),
         })
-        print(f"[REVIEWS] · {r.get('author_name')} ({r.get('rating')}★) — {r.get('text', '')[:60]}...")
+        print(f"[REVIEWS] - {r.get('author_name')} ({r.get('rating')} stars) - {text[:60]}...")
+        
+        if len(reviews) >= max_reviews:
+            break
+
+    print(f"[REVIEWS] API returned {len(raw_reviews)} raw reviews. Found {len(reviews)} with text. Using top {len(reviews)}.")
 
     photos = result.get("photos", [])
     return reviews, photos
@@ -207,10 +214,10 @@ def download_avatar(avatar_url: str, business_id: str, index: int) -> str | None
         with open(local_path, "wb") as f:
             for chunk in resp.iter_content(chunk_size=8192):
                 f.write(chunk)
-        print(f"[AVATAR] ✓ Saved high-res: {local_path}")
+        print(f"[AVATAR] [OK] Saved high-res: {local_path}")
         return local_path
     except Exception as e:
-        print(f"[AVATAR] ✗ Failed to download avatar {index}: {e}")
+        print(f"[AVATAR] [ERROR] Failed to download avatar {index}: {e}")
         return None
 
 
@@ -239,10 +246,10 @@ def download_place_photo(photo_reference: str, business_id: str, api_key: str) -
         with open(local_path, "wb") as f:
             for chunk in resp.iter_content(chunk_size=8192):
                 f.write(chunk)
-        print(f"[PHOTO] ✓ Saved background: {local_path}")
+        print(f"[PHOTO] [OK] Saved background: {local_path}")
         return local_path
     except Exception as e:
-        print(f"[PHOTO] ✗ Failed to download background photo: {e}")
+        print(f"[PHOTO] [ERROR] Failed to download background photo: {e}")
         return None
 
 
@@ -329,7 +336,7 @@ def process_lead(query_or_url: str) -> str | None:
     metadata_path = save_metadata(business_id, place_info, reviews, bg_path)
 
     print("--- SUCCESS ---")
-    print(f"Business : {place_info['name']} ({place_info['rating']}★)")
+    print(f"Business : {place_info['name']} ({place_info['rating']} stars)")
     print(f"Reviews  : {len(reviews)}")
     print(f"Folder   : {os.path.join(BASE_TEMP_DIR, business_id)}")
     print(f"Contract : {metadata_path}")
