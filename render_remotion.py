@@ -70,19 +70,25 @@ def render_lead_with_remotion(lead_dir: str) -> str | None:
     
     try:
         # Run Remotion inside the remotion_engine folder
-        result = subprocess.run(
+        process = subprocess.Popen(
             cmd,
             cwd=REMOTION_DIR,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             text=True,
-            check=True
+            bufsize=1
         )
+        for line in iter(process.stdout.readline, ''):
+            print(line, end='', flush=True)
+        
+        process.wait()
+        if process.returncode != 0:
+            raise subprocess.CalledProcessError(process.returncode, process.args)
+            
         print(f"[REMOTION_BRIDGE] ✓ Done → {final_path}")
         return final_path
     except subprocess.CalledProcessError as e:
-        print(f"[REMOTION_BRIDGE] ERROR rendering video:")
-        print(e.stdout)
-        print(e.stderr)
+        print(f"\n[REMOTION_BRIDGE] ERROR rendering video")
         return None
 
 if __name__ == "__main__":

@@ -80,11 +80,15 @@ def run_pipeline(query: str, lead_id: str = None, supabase=None, business_name: 
     # Step 1: Places API
     try:
         print(f"\n[ORCHESTRATOR] Running places_api.py...")
-        result = subprocess.run(
+        process = subprocess.Popen(
             ["python", "places_api.py", query],
-            capture_output=True, text=True, check=True
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1
         )
-        print(result.stdout)
+        for line in iter(process.stdout.readline, ''):
+            print(line, end='', flush=True)
+        process.wait()
+        if process.returncode != 0:
+            raise subprocess.CalledProcessError(process.returncode, process.args)
     except subprocess.CalledProcessError as e:
         err_msg = f"Places API failed:\nSTDOUT: {e.stdout}\nSTDERR: {e.stderr}"
         print(f"[ORCHESTRATOR] X {err_msg}")
@@ -105,18 +109,19 @@ def run_pipeline(query: str, lead_id: str = None, supabase=None, business_name: 
     # Step 2: Core Render
     try:
         print(f"\n[ORCHESTRATOR] Running render_remotion.py...")
-        result = subprocess.run(
+        process = subprocess.Popen(
             ["python", "render_remotion.py", business_name],
-            capture_output=True, text=True, check=True
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1
         )
-        print(result.stdout)
-        
-        # Extract the video path from stdout
         video_path = None
-        for line in result.stdout.split('\n'):
+        for line in iter(process.stdout.readline, ''):
+            print(line, end='', flush=True)
             if "[CLI] Video ready:" in line:
                 video_path = line.split("[CLI] Video ready:")[1].strip()
-                break
+        
+        process.wait()
+        if process.returncode != 0:
+            raise subprocess.CalledProcessError(process.returncode, process.args)
 
     except subprocess.CalledProcessError as e:
         err_msg = f"Core Render failed:\nSTDOUT: {e.stdout}\nSTDERR: {e.stderr}"
